@@ -91,14 +91,9 @@ module Data.Conduit.Parallel.Internal.Duct where
         fmap f rd = ReadDuct $ fmap (fmap f) <$> getReadDuct rd
 
 
-    data IsOpen =
-        IsOpen
-        | IsClosed
-        deriving (Show, Read, Ord, Eq, Enum, Bounded)
-
     newtype WriteDuct m a =
         WriteDuct {
-            getWriteDuct :: WorkerThread m (a -> STM IsOpen) }
+            getWriteDuct :: WorkerThread m (a -> STM (Maybe ())) }
 
     instance Functor m => Contravariant (WriteDuct m) where
         contramap f wd = WriteDuct $ (. f) <$> getWriteDuct wd

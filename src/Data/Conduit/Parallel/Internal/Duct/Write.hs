@@ -30,20 +30,15 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
     import           Data.These        (These (..))
     import           UnliftIO
 
-    import           Data.Conduit.Parallel.Internal.Spawn
     import           Data.Conduit.Parallel.Internal.Duct
-
-
-    data ClosedDuctException = ClosedDuctException
-        deriving (Show)
-
-    instance Exception ClosedDuctException
+    import           Data.Conduit.Parallel.Internal.Duct.Utils
+    import           Data.Conduit.Parallel.Internal.Spawn
 
     writeBoth :: forall a b .
-                    (a -> STM IsOpen)
-                    -> (b -> STM IsOpen)
+                    (a -> STM (Maybe ()))
+                    -> (b -> STM (Maybe ()))
                     -> (a, b)
-                    -> STM IsOpen
+                    -> STM (Maybe ())
     writeBoth wa wb (a, b) = catchSTM foo onE
         where
 
@@ -54,42 +49,22 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             -- write ducts, or none of them.  Note that this also
             -- works when one (or more) ducts are full and can not
             -- be written to- we retry everything.
-            foo :: STM IsOpen
+            foo :: STM (Maybe ())
             foo = do
                 go a wa
                 go b wb
-                pure IsOpen
+                pure (Just ())
 
             
-            go :: forall x . x -> (x -> STM IsOpen) -> STM ()
+            go :: forall x . x -> (x -> STM (Maybe ())) -> STM ()
             go x wx = do
                 r <- wx x
                 case r of
-                    IsOpen   -> pure ()
-                    IsClosed -> throwSTM ClosedDuctException
+                    Just () -> pure ()
+                    Nothing -> throwSTM ClosedDuctException
 
-            onE :: ClosedDuctException -> STM IsOpen
-            onE ClosedDuctException = pure IsClosed
-
-    testAndSetIsOpen :: TVar IsOpen
-                        -> STM IsOpen
-                        -> STM IsOpen
-    testAndSetIsOpen tvar act = do
-        s <- readTVar tvar
-        case s of
-            IsClosed -> pure IsClosed
-            IsOpen   -> do
-                r <- act
-                case r of
-                    IsOpen   -> pure IsOpen
-                    IsClosed -> do
-                        writeTVar tvar IsClosed
-                        pure IsClosed
-
-    catchRetry :: forall a .
-                    STM a
-                    -> STM (Maybe a)
-    catchRetry act = (Just <$> act) `orElse` pure Nothing
+            onE :: ClosedDuctException -> STM (Maybe ())
+            onE ClosedDuctException = pure Nothing
 
     writeTuple :: forall m a b .
                     MonadIO m
@@ -98,12 +73,11 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
                     -> WriteDuct m (a,b)
     writeTuple wda wdb = WriteDuct go
         where
-            go :: WorkerThread m ((a, b) -> STM IsOpen)
+            go :: WorkerThread m ((a, b) -> STM (Maybe ()))
             go = do
                 wa <- getWriteDuct wda
                 wb <- getWriteDuct wdb
-                tvar <- newTVarIO IsOpen
-                pure $ \ (a,b) -> testAndSetIsOpen tvar (writeBoth wa wb (a, b))
+                checkClosed (\f -> \x -> f (writeBoth wa wb x))
 
     writeEither :: forall a b m .
                         MonadIO m
@@ -112,20 +86,18 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
                         -> WriteDuct m (Either a b)
     writeEither wda wdb = WriteDuct go
         where
-            go :: WorkerThread m (Either a b -> STM IsOpen)
+            go :: WorkerThread m (Either a b -> STM (Maybe ()))
             go = do
                 wa <- getWriteDuct wda
                 wb <- getWriteDuct wdb
-                tvar <- newTVarIO IsOpen
-                pure $ doWrite tvar wa wb
+                checkClosed (\f -> \x -> f (doWrite wa wb x))
 
-            doWrite :: TVar IsOpen
-                        -> (a -> STM IsOpen)
-                        -> (b -> STM IsOpen)
+            doWrite :: (a -> STM (Maybe ()))
+                        -> (b -> STM (Maybe ()))
                         -> Either a b
-                        -> STM IsOpen
-            doWrite tvar wa _  (Left a)  = testAndSetIsOpen tvar (wa a)
-            doWrite tvar _  wb (Right b) = testAndSetIsOpen tvar (wb b)
+                        -> STM (Maybe ())
+            doWrite wa _  (Left a)  = wa a
+            doWrite _  wb (Right b) = wb b
 
     writeThese :: forall a b m .
                         MonadIO m
@@ -134,78 +106,73 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
                         -> WriteDuct m (These a b)
     writeThese wda wdb = WriteDuct go
         where
-            go :: WorkerThread m (These a b -> STM IsOpen)
+            go :: WorkerThread m (These a b -> STM (Maybe ()))
             go = do
                 wa <- getWriteDuct wda
                 wb <- getWriteDuct wdb
-                tvar <- newTVarIO IsOpen
-                pure $ doWrite tvar wa wb
+                checkClosed (\f -> \x -> f (doWrite wa wb x))
 
-            doWrite :: TVar IsOpen
-                        -> (a -> STM IsOpen)
-                        -> (b -> STM IsOpen)
+            doWrite :: (a -> STM (Maybe ()))
+                        -> (b -> STM (Maybe ()))
                         -> These a b
-                        -> STM IsOpen
-            doWrite tvar wa _  (This  a  ) = testAndSetIsOpen tvar (wa a)
-            doWrite tvar _  wb (That    b) = testAndSetIsOpen tvar (wb b)
-            doWrite tvar wa wb (These a b) =
-                testAndSetIsOpen tvar (writeBoth wa wb (a, b))
+                        -> STM (Maybe ())
+            doWrite wa _  (This  a  ) = wa a
+            doWrite _  wb (That    b) = wb b
+            doWrite wa wb (These a b) = writeBoth wa wb (a, b)
 
     writeAll :: forall a m . MonadIO m => [ WriteDuct m a ] -> WriteDuct m a
     writeAll ducts = WriteDuct go
         where
-            go :: WorkerThread m (a -> STM IsOpen)
+            go :: WorkerThread m (a -> STM (Maybe ()))
             go = do
-                writes :: [ (a -> STM IsOpen) ] <- mapM getWriteDuct ducts
-                tvar <- newTVarIO IsOpen
-                pure $ doWrite tvar writes
+                writes :: [ (a -> STM (Maybe ())) ] <- mapM getWriteDuct ducts
+                checkClosed (\f -> \x -> f (doWrite writes x))
 
-            doWrite :: TVar IsOpen -> [ (a -> STM IsOpen) ] -> a -> STM IsOpen
-            doWrite tvar ws a = do
-                -- Same stunt with throwSTM that we did with writeTuple.
-                testAndSetIsOpen tvar (catchSTM (loop ws a) onE)
+            -- Same stunt with throwSTM that we did with writeTuple.
+            doWrite :: [ (a -> STM (Maybe ())) ] -> a -> STM (Maybe ())
+            doWrite ws a = catchSTM (loop ws a) onE
 
-            onE :: ClosedDuctException  -> STM IsOpen
-            onE ClosedDuctException = pure IsClosed
+            onE :: ClosedDuctException  -> STM (Maybe ())
+            onE ClosedDuctException = pure Nothing
 
-            loop :: [ (a -> STM IsOpen) ] -> a -> STM IsOpen
+            loop :: [ (a -> STM (Maybe ())) ] -> a -> STM (Maybe ())
             loop ws a = do
                 mapM_ (doAWrite a) ws
-                pure IsOpen
+                pure (Just ())
 
-            doAWrite :: a -> (a -> STM IsOpen) -> STM ()
+            doAWrite :: a -> (a -> STM (Maybe ())) -> STM ()
             doAWrite a wa = do
                 r <- wa a
                 case r of
-                    IsOpen   -> pure ()
-                    IsClosed -> throwSTM ClosedDuctException
+                    Just () -> pure ()
+                    Nothing -> throwSTM ClosedDuctException
 
     writeAny :: forall a m . MonadIO m => [ WriteDuct m a ] -> WriteDuct m a
     writeAny ducts = WriteDuct go
         where
-            go :: WorkerThread m (a -> STM IsOpen)
+            go :: WorkerThread m (a -> STM (Maybe ()))
             go = do
-                writes :: [ (a -> STM IsOpen) ] <- mapM getWriteDuct ducts
+                writes :: [ (a -> STM (Maybe ())) ] <- mapM getWriteDuct ducts
                 wvar <- newTVarIO . Seq.fromList $ writes
                 pure $ doWrite wvar
 
-            doWrite :: TVar (Seq (a -> STM IsOpen))
+            doWrite :: TVar (Seq (a -> STM (Maybe ())))
                         -> a
-                        -> STM IsOpen
+                        -> STM (Maybe ())
             doWrite wvar a = do
-                s1 :: Seq (a -> STM IsOpen) <- readTVar wvar
+                s1 :: Seq (a -> STM (Maybe ())) <- readTVar wvar
                 (open, s2) <- writeLoop s1 Seq.empty a
                 writeTVar wvar s2
                 pure open
 
-            writeLoop :: Seq (a -> STM IsOpen)
-                            -> Seq (a -> STM IsOpen)
+            writeLoop :: Seq (a -> STM (Maybe ()))
+                            -> Seq (a -> STM (Maybe ()))
                             -> a
-                            -> STM (IsOpen, Seq (a -> STM IsOpen))
+                            -> STM ((Maybe ()), Seq (a -> STM (Maybe ())))
             writeLoop ds fulls a = do
                 case Seq.viewl ds of
                     Seq.EmptyL
-                        | Seq.null fulls -> pure (IsClosed, Seq.empty)
+                        | Seq.null fulls -> pure (Nothing, Seq.empty)
                         | otherwise      -> retry
                     w Seq.:< ws          -> do
                         r <- catchRetry (w a)
@@ -213,10 +180,10 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
                             Nothing ->
                                 -- This specific duct is full.
                                 writeLoop ws (fulls Seq.|> w) a
-                            Just IsOpen ->
+                            Just (Just ()) ->
                                 -- Write succeeded
-                                pure (IsOpen, ws Seq.>< (fulls Seq.|> w))
-                            Just IsClosed ->
+                                pure (Just (), ws Seq.>< (fulls Seq.|> w))
+                            Just Nothing ->
                                 -- Duct is closed- drop it from the list.
                                 writeLoop ws fulls a
 
@@ -224,26 +191,26 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
     writeSeq :: forall a m .  MonadIO m => [ WriteDuct m a ] -> WriteDuct m a
     writeSeq ducts = WriteDuct go
         where
-            go :: WorkerThread m (a -> STM IsOpen)
+            go :: WorkerThread m (a -> STM (Maybe ()))
             go = do
-                writes :: [ (a -> STM IsOpen) ] <- mapM getWriteDuct ducts
+                writes :: [ (a -> STM (Maybe ())) ] <- mapM getWriteDuct ducts
                 wvar <- newTVarIO . Seq.fromList $ writes
                 pure $ doWrite wvar
     
-            doWrite :: TVar (Seq (a -> STM IsOpen))
+            doWrite :: TVar (Seq (a -> STM (Maybe ())))
                         -> a
-                        -> STM IsOpen
+                        -> STM (Maybe ())
             doWrite wvar a = do
-                ws1 :: Seq (a -> STM IsOpen) <- readTVar wvar
+                ws1 :: Seq (a -> STM (Maybe ())) <- readTVar wvar
                 case Seq.viewl ws1 of
-                    Seq.EmptyL     -> pure IsClosed
+                    Seq.EmptyL     -> pure Nothing
                     (w Seq.:< ws2) -> do
                         r <- w a
                         case r of
-                            IsOpen -> do
+                            Just () -> do
                                 writeTVar wvar (ws2 Seq.|> w)
-                                pure IsOpen
-                            IsClosed-> do
+                                pure (Just ())
+                            Nothing -> do
                                 -- Drop the closed duct from our list
                                 writeTVar wvar ws2
                                 doWrite wvar a

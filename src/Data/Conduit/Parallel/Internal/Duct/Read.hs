@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 -- |
 -- Module      : Data.Conduit.Parallel.Internal.Duct.Read
 -- Description : Parallel Conduit Ducts
@@ -13,51 +15,54 @@
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
 
-module Data.Conduit.Parallel.Internal.Duct.Read where
+module Data.Conduit.Parallel.Internal.Duct.Read(
+    readTuple,
+    readMerge
+) where
 
-    import           Control.Concurrent.STM
-    import           Control.Exception
-    import           Data.Functor.Contravariant
-    import           Data.Sequence              (Seq)
-    import qualified Data.Sequence              as Seq
-    import           Data.These                 (These (..))
-    import           Data.Void
+    import           Control.Monad.STM
+    -- import           Data.Sequence     (Seq)
+    -- import qualified Data.Sequence     as Seq
+    -- import           Data.These        (These (..))
+    import           UnliftIO
 
-    import           Data.Conduit.Parallel.Internal.Spawn
     import           Data.Conduit.Parallel.Internal.Duct
+    import           Data.Conduit.Parallel.Internal.Duct.Utils
+    import           Data.Conduit.Parallel.Internal.Spawn
 
 
-    readTuple :: forall a b .
-                    ReadDuct a
-                    -> ReadDuct b
-                    -> ReadDuct (a, b)
-    readTuple rda rdb = ReadDuct {
-                            readDuctSTM = doRead,
-                            closeReadDuctSTM = doClose }
+    readBoth :: forall a b .
+                    STM (Maybe a)
+                    -> STM (Maybe b)
+                    -> STM (Maybe (a, b))
+    readBoth ra rb = catchSTM foo onE
         where
-            doRead :: STM (Maybe (a, b))
-            doRead = do
-                ma :: Maybe a <- readDuctSTM rda
-                case ma of
-                    Nothing -> do
-                        closeReadDuctSTM rdb
-                        pure Nothing
-                    Just a -> do
-                        mb :: Maybe b <- readDuctSTM rdb
-                        case mb of
-                            Nothing -> do
-                                -- The fact that we have already read an
-                                -- element from the a duct doesn't matter
-                                -- here- we're discarding it anyways.
-                                closeReadDuctSTM rda
-                                pure Nothing
-                            Just b -> pure $ Just (a, b)
+            foo :: STM (Maybe (a, b))
+            foo = do
+                a <- bar ra
+                b <- bar rb
+                pure $ Just (a, b)
 
-            doClose :: STM ()
-            doClose = do
-                closeReadDuctSTM rda
-                closeReadDuctSTM rdb
-                pure ()
+            bar :: forall x .  STM (Maybe x) -> STM x
+            bar rx = do
+                r <- rx
+                case r of
+                    Just x -> pure x
+                    Nothing -> throwSTM ClosedDuctException
 
+            onE :: ClosedDuctException -> STM (Maybe (a, b))
+            onE ClosedDuctException = pure Nothing
 
+    readTuple :: forall a b m .
+                    MonadIO m
+                    => ReadDuct m a
+                    -> ReadDuct m b
+                    -> ReadDuct m (a, b)
+    readTuple rda rdb = ReadDuct go
+        where
+            go :: WorkerThread m (STM (Maybe (a, b)))
+            go = do
+                ra :: STM (Maybe a) <- getReadDuct rda
+                rb :: STM (Maybe b) <- getReadDuct rdb
+                checkClosed ($ readBoth ra rb)
 

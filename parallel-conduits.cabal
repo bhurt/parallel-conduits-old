@@ -20,10 +20,11 @@ Flag Devel
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Conduit.Parallel.Internal.Duct
-                        , Data.Conduit.Parallel.Internal.Spawn
                         , Data.Conduit.Parallel.Internal.Duct.Create
                         , Data.Conduit.Parallel.Internal.Duct.No
+                        , Data.Conduit.Parallel.Internal.Duct.Utils
                         , Data.Conduit.Parallel.Internal.Duct.Write
+                        , Data.Conduit.Parallel.Internal.Spawn
   build-depends:       base >= 4.7 && < 5
                         , containers
                         , kan-extensions

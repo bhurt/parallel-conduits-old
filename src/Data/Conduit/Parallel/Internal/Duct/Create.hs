@@ -61,18 +61,18 @@ module Data.Conduit.Parallel.Internal.Duct.Create where
                                             (doWrite tvar)
                                             (writeClose tvar)
 
-            doWrite :: TVar (DuctState a) -> m (a -> STM IsOpen)
+            doWrite :: TVar (DuctState a) -> m (a -> STM (Maybe ()))
             doWrite tvar = pure $ \a -> do
                 s <- readTVar tvar
                 case s of
                     Empty -> do
                         writeTVar tvar (Full a)
-                        pure IsOpen
+                        pure (Just ())
                     Full _ -> retry
-                    Closed -> pure IsClosed
+                    Closed -> pure Nothing
 
             writeClose :: TVar (DuctState a)
-                            -> (a -> STM IsOpen)
+                            -> (a -> STM (Maybe ()))
                             -> m ()
             writeClose tvar _ = do
                 _ <- safeAtomically $ do
