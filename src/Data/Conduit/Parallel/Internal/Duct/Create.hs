@@ -28,15 +28,17 @@ module Data.Conduit.Parallel.Internal.Duct.Create where
         | Full a
         | Closed
 
-    createDuct :: forall a m . MonadUnliftIO m => ControlThread m (Duct m a)
+    createDuct :: forall a m .
+                        MonadUnliftIO m
+                        => ControlThread m (Duct Simple m a)
     createDuct = go <$> newTVarIO Empty
         where
-            go :: TVar (DuctState a) -> Duct m a
+            go :: TVar (DuctState a) -> Duct Simple m a
             go tvar = Duct {
                         getReadEndpoint = readEndpoint tvar,
                         getWriteEndpoint = writeEndpoint tvar }
 
-            readEndpoint :: TVar (DuctState a) -> ReadDuct m a
+            readEndpoint :: TVar (DuctState a) -> ReadDuct Simple m a
             readEndpoint tvar = ReadDuct $ workerThreadBracket
                                             (doRead tvar)
                                             (readClose tvar)
@@ -56,7 +58,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create where
                 _ <- safeAtomically $ writeTVar tvar Closed
                 pure ()
 
-            writeEndpoint :: TVar (DuctState a) -> WriteDuct m a
+            writeEndpoint :: TVar (DuctState a) -> WriteDuct Simple m a
             writeEndpoint tvar = WriteDuct$ workerThreadBracket
                                             (doWrite tvar)
                                             (writeClose tvar)

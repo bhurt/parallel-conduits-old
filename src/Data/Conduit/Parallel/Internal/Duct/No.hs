@@ -20,10 +20,10 @@ module Data.Conduit.Parallel.Internal.Duct.No where
     import           Data.Conduit.Parallel.Internal.Duct
 
 
-    noRead :: ReadDuct m ()
+    noRead :: ReadDuct Simple m ()
     noRead = ReadDuct $ pure (pure Nothing)
 
-    noWrite :: WriteDuct m Void
+    noWrite :: WriteDuct Simple m Void
     noWrite = WriteDuct $ pure absurd
 
 

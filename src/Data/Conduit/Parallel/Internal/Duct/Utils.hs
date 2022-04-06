@@ -19,7 +19,6 @@ module Data.Conduit.Parallel.Internal.Duct.Utils where
 
     import           Control.Concurrent.STM
     import           Control.Exception
-    import           Control.Monad.IO.Class
 
     -- | Exception to throw when a closed duct is encountered.
     --
@@ -43,25 +42,5 @@ module Data.Conduit.Parallel.Internal.Duct.Utils where
     catchRetry :: forall a .  STM a -> STM (Maybe a)
     catchRetry act = (Just <$> act) `orElse` pure Nothing
 
-
-    checkClosed :: forall a b m .
-                            MonadIO m
-                            => ((STM (Maybe a) -> STM (Maybe a)) -> b)
-                            -> m b
-    checkClosed makeB = do
-        tvar <- liftIO $ newTVarIO True
-        let f :: STM (Maybe a) -> STM (Maybe a)
-            f act = do
-                s <- readTVar tvar
-                case s of
-                    False -> pure Nothing
-                    True  -> do
-                        r :: Maybe a <- act
-                        case r of
-                            Just a  -> pure $ Just a
-                            Nothing -> do
-                                writeTVar tvar False
-                                pure Nothing
-        pure $ makeB f
 
 

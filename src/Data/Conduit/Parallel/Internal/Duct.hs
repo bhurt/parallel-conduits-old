@@ -71,32 +71,48 @@ module Data.Conduit.Parallel.Internal.Duct where
     -- which ever order I return the two endpoints in, I'll screw
     -- it up about half the time.
     --
-    data Duct m a =
+    data Duct t m a =
         Duct {
             -- | Get the read endpoint of the duct.
-            getReadEndpoint  :: ReadDuct m a,
+            getReadEndpoint  :: ReadDuct t m a,
 
             -- | Get the write endpoint of the duct.
-            getWriteEndpoint :: WriteDuct m a }
+            getWriteEndpoint :: WriteDuct t m a }
 
 
     -- | The read endpoint of a duct.
     --
     -- This is an STM action available as a resource in a worker thread.
-    newtype ReadDuct m a =
+    newtype ReadDuct t m a =
         ReadDuct {
             getReadDuct :: WorkerThread m (STM (Maybe a)) }
 
-    instance Functor m => Functor (ReadDuct m) where
+    instance Functor m => Functor (ReadDuct t m) where
         fmap f rd = ReadDuct $ fmap (fmap f) <$> getReadDuct rd
 
 
-    newtype WriteDuct m a =
+    newtype WriteDuct t m a =
         WriteDuct {
             getWriteDuct :: WorkerThread m (a -> STM (Maybe ())) }
 
-    instance Functor m => Contravariant (WriteDuct m) where
+    instance Functor m => Contravariant (WriteDuct t m) where
         contramap f wd = WriteDuct $ (. f) <$> getWriteDuct wd
+
+    data Complex = Complex
+
+    data Simple = Simple
+
+    makeComplexRead :: ReadDuct Simple m a -> ReadDuct Complex m a
+    makeComplexRead = ReadDuct . getReadDuct
+
+    makeComplexWrite :: WriteDuct Simple m a -> WriteDuct Complex m a
+    makeComplexWrite = WriteDuct . getWriteDuct
+
+    closeReadDuct :: forall t m a . ReadDuct t m a -> WorkerThread m ()
+    closeReadDuct rd = getReadDuct rd >> pure ()
+
+    closeWriteDuct :: forall t m a . WriteDuct t m a -> WorkerThread m ()
+    closeWriteDuct wd = getWriteDuct wd >> pure ()
 
 {-
     -- | Read endpoint of a duct.

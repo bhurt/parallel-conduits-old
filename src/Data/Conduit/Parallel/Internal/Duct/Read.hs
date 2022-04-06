@@ -55,14 +55,14 @@ module Data.Conduit.Parallel.Internal.Duct.Read(
 
     readTuple :: forall a b m .
                     MonadIO m
-                    => ReadDuct m a
-                    -> ReadDuct m b
-                    -> ReadDuct m (a, b)
+                    => ReadDuct Simple m a
+                    -> ReadDuct Simple m b
+                    -> ReadDuct Complex m (a, b)
     readTuple rda rdb = ReadDuct go
         where
             go :: WorkerThread m (STM (Maybe (a, b)))
             go = do
                 ra :: STM (Maybe a) <- getReadDuct rda
                 rb :: STM (Maybe b) <- getReadDuct rdb
-                checkClosed ($ readBoth ra rb)
+                pure $ readBoth ra rb
 
