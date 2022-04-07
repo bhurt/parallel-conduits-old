@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
@@ -10,15 +12,19 @@
 --
 -- This is an internal module of the Parallel Conduits.  You almost
 -- certainly want to use [Data.Conduit.Parallel](Data-Conduit-Parallel.html)
--- instead.  Anything -- in this module not explicitly re-exported 
+-- instead.  Anything in this module not explicitly re-exported 
 -- by [Data.Conduit.Parallel](Data-Conduit-Parallel.html)
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
+--
+-- = Purpose
 --
 -- This module introduces Ducts, which are like MVars but have an additional
 -- Closed state.  In addition, we split a Duct into two endpoints- a read
 -- endpoint and a write endpoint.  This makes Ducts more like unix pipes
 -- in this way.
+--
+-- = Motivation
 -- 
 -- The problem with MVars is that there is no easy way to signal the
 -- writers of the duct that the readers have all exited.  Previous attempts
@@ -33,8 +39,9 @@
 --
 -- The problem with STM is that it does give rise to the "thundering herd"
 -- problem- writing a single TVar and wake up many threads.  This is one
--- place where MVars shine- they guarantee a single wakeup.  However, in
+-- place where MVars shine: they guarantee a single wakeup.  However, in
 -- the specific use case of parallel conduits, there is a simple solution.
+--
 -- We simply add "shim threads" in those places where the thundering herd
 -- is likely to be a problem.  A shim thread either reads from one duct
 -- and writes to multiple ducts, or reads from multiple ducts and writes
@@ -45,6 +52,25 @@
 -- multiple ducts).  In this library, it's not a problem, but this sharp
 -- corner of ducts is why they will never be made into their own library.
 --
+-- = Duct Flavors
+--
+-- Ducts endpoints come in two flavors:
+--
+--  [@Simple@] endpoints are where reading from or writing to the duct
+--      is cheap- reading or writing a TVar or less.
+--  [@Complex@] endpoints are where reading from or writing to the
+--      duct can be expensive.  Duct endpoints which are constructed
+--      out of other duct endpoints are @Complex@.
+--
+-- == Motivation for Flavors
+--
+-- The difference is that it's not worth it to avoid re-reading or
+-- re-writing @Simple@ endpoints.  This is important when we're
+-- combining multiple endpoints into a single endpoint- if we combine
+-- multiple @Complex@ endpoints together can have surprising performance
+-- problems.  So we avoid it by only combining @Simple@ endpoints.  And
+-- we use a phantom type variable to enforce this.
+--
 module Data.Conduit.Parallel.Internal.Duct where
 
     import           Control.Concurrent.STM
@@ -52,26 +78,40 @@ module Data.Conduit.Parallel.Internal.Duct where
 
     import           Data.Conduit.Parallel.Internal.Spawn
 
+    -- | The flavor of a duct endpoint, lifted to a kind.
+    --
+    -- We're using the DataKinds extension in this module, so
+    -- Flavor is also a Kind.
+    data Flavor =
+        SimpleFlavor    -- ^ Simple duct endpoints
+        | ComplexFlavor -- ^ Complex duct endpoints
+
+    -- | Phantom Type for Simple Endpoints
+    --
+    -- Note that DataKinds-defined types can't be exported from a
+    -- module.  Only the data type is exported.  Which means that
+    -- the importing module needs to have DataKinds enabled as
+    -- well.  But by making a type synonym, we /can/ export that.
+    --
+    -- So the DataKinds type is @SimpleFlavor@, the type synomym
+    -- is @Simple@, and I just use @Simple@ everywhere else without
+    -- having to enable DataKinds.
+    --
+    type Simple = 'SimpleFlavor
+
+    -- | Phantom Type for Complex Endpoints
+    --
+    -- See `Simple` for an explanation of what is going on here.
+    --
+    type Complex = 'ComplexFlavor
+
     -- | A duct, which is the pair of a read endpoint and a write endpoint.
-    --
-    -- A duct can be in one of three states:
-    --
-    --  [@Empty@] The duct currently does not have an element to read.
-    --      Reads from the duct will retry, while writes will succeed.
-    --  [@Full@] The duct currently does have an element to read.
-    --      Reads from the duct will succeed, while write will retry.
-    --  [@Closed@] The duct is closed.  Both reads and writes will fail
-    --      in a way to indicate that the duct is closed.  Multiple
-    --      attempts to read a closed duct are not an error, but should
-    --      have no effect.  @Closed@ is the terminal state of a duct-
-    --      once it has closed, it can never again be either @Full@ or
-    --      @Empty@.
     --
     -- This structure could just be a tuple, but from experience,
     -- which ever order I return the two endpoints in, I'll screw
     -- it up about half the time.
     --
-    data Duct t m a =
+    data Duct (t :: Flavor) m a =
         Duct {
             -- | Get the read endpoint of the duct.
             getReadEndpoint  :: ReadDuct t m a,
@@ -83,7 +123,19 @@ module Data.Conduit.Parallel.Internal.Duct where
     -- | The read endpoint of a duct.
     --
     -- This is an STM action available as a resource in a worker thread.
-    newtype ReadDuct t m a =
+    -- The STM action resource will behave the following way:
+    -- 
+    --  * If the duct is not closed and contains at least one value,
+    --      that value will be removed from the duct and returned from
+    --      the STM action in a @Just@.
+    --  * If the duct is not closed but does not contain even one value,
+    --      the STM action will retry.
+    --  * If the duct is closed, the STM action will return @Nothing@.
+    --
+    -- Once the worker thread exits (and the STM action is released)
+    -- the duct will be closed.
+    --
+    newtype ReadDuct (t :: Flavor) m a =
         ReadDuct {
             getReadDuct :: WorkerThread m (STM (Maybe a)) }
 
@@ -91,116 +143,25 @@ module Data.Conduit.Parallel.Internal.Duct where
         fmap f rd = ReadDuct $ fmap (fmap f) <$> getReadDuct rd
 
 
-    newtype WriteDuct t m a =
+    -- | The write endpoint of a duct.
+    --
+    -- This is an STM action available as a resource in a worker thread.
+    -- The STM action resource will behave the following way:
+    -- 
+    --  * If the duct is not closed and can take at least one more
+    --      value, the value is added to the duct and @Just ()@ is
+    --      returned from the STM action.
+    --  * If the duct is not closed but can not take even one more
+    --      value, then the STM action will retry.
+    --  * If the duct is closed, the STM action will return @Nothing@.
+    --
+    -- Once the worker thread exits (and the STM action is released)
+    -- the duct will be closed.
+    --
+    newtype WriteDuct (t :: Flavor) m a =
         WriteDuct {
             getWriteDuct :: WorkerThread m (a -> STM (Maybe ())) }
 
     instance Functor m => Contravariant (WriteDuct t m) where
         contramap f wd = WriteDuct $ (. f) <$> getWriteDuct wd
 
-    data Complex = Complex
-
-    data Simple = Simple
-
-    makeComplexRead :: ReadDuct Simple m a -> ReadDuct Complex m a
-    makeComplexRead = ReadDuct . getReadDuct
-
-    makeComplexWrite :: WriteDuct Simple m a -> WriteDuct Complex m a
-    makeComplexWrite = WriteDuct . getWriteDuct
-
-    closeReadDuct :: forall t m a . ReadDuct t m a -> WorkerThread m ()
-    closeReadDuct rd = getReadDuct rd >> pure ()
-
-    closeWriteDuct :: forall t m a . WriteDuct t m a -> WorkerThread m ()
-    closeWriteDuct wd = getWriteDuct wd >> pure ()
-
-{-
-    -- | Read endpoint of a duct.
-    data ReadDuct a =
-        ReadDuct {
-
-            -- | Reads an element from the duct in the STM monad.
-            --
-            --      * If the duct is @Empty@ (i.e. has no element to read),
-            --          then this function retries.
-            --      * If the duct is @Full@ (i.e. has an element to read),
-            --          then this function returns that element in a
-            --          @Just@ and makes the duct empty.
-            --      * If the duct is @Closed@, then this function simply
-            --          returns @Nothing@.  Once this function returns
-            --          @Nothing@, all further calls will also return 
-            --          @Nothing@.  It is not an error to call this 
-            --          function multiple times on a closed duct, it just 
-            --          should not have any effect.
-            --
-            -- This interface is designed to work with the @MaybeT@
-            -- monad transformer higher up the stack.  The behavior
-            -- then becomes that if the duct is @Empty@, the function
-            -- blocks, if @Full@ it returns the value, and if @Closed@,
-            -- it aborts the whole operation.  This is useful behavior
-            -- elsewhere.
-            readDuctSTM :: WorkerSTM (Maybe a),
-
-            -- | Closes the duct.  
-            --
-            --      * If the duct is @Empty@, the duct simply becomes @Closed@.
-            --      * If the duct is @Full@, the element in the duct is
-            --          discarded, and the duct is @Closed@.
-            --      * If the duct is @Closed@, then the duct remains @Closed@.
-            --          It is not an error to close an already closed
-            --          duct.
-            closeReadDuctSTM :: STM () }
-
-    -- | @Applicative@ and @Alternative@ instances are probably possible,
-    --      but I don't think they're useful.  I'm not sure a @Monad@
-    --      instance is sane, and definitely isn't useful.
-    instance Functor ReadDuct where
-        fmap f rd = ReadDuct {
-                        readDuctSTM = (fmap f <$> readDuctSTM rd),
-                        closeReadDuctSTM = closeReadDuctSTM rd }
-
-    -- | Write endpoint of a duct.
-    data WriteDuct a =
-       WriteDuct {
- 
-            -- | Writes an element to the duct in the STM monad.
-            --
-            --      * If the duct is @Empty@ (i.e. has no element to read),
-            --          then this function makes the duct @Full@ holding
-            --          the given element and returns @Just ()@.
-            --      * If the duct is @Full@ (i.e. has an element to read),
-            --          then this function retries.
-            --      * If the duct is @Closed@, then this function simply
-            --          returns @Nothing@.  Once this function returns
-            --          @Nothing@, all further calls will also return 
-            --          @Nothing@.  It is not an error to call this 
-            --          function multiple times on a closed duct, it just 
-            --          should not have any effect.
-            --
-            -- This interface is designed to work with the @MaybeT@
-            -- monad transformer higher up the stack.  See the `ReadDuct`
-            -- documentation for why.
-            writeDuctSTM :: a -> STM (Maybe ()),
-
-            -- | Closes the duct.  
-            --
-            --      * If the duct is @Empty@, the duct simply becomes @Closed@.
-            --      * If the duct is @Full@, this function retries.  This is
-            --          different from the behavior of `closeReadSTM`.  By
-            --          retrying (blocking), this allows the downstream
-            --          readers to read and handle the last element before
-            --          the close takes effect.
-            --      * If the duct is @Closed@, then the duct remains @Closed@.
-            --          It is not an error to close an already closed
-            --          duct.
-            closeWriteSTM :: STM () }
-
-    -- | WriteDucts are contravariant functors.
-    --
-    -- Note: WriteDucts are consumers, not producers.
-    instance Contravariant WriteDuct where
-        contramap f wr = WriteDuct {
-                            writeDuctSTM = writeDuctSTM wr . f,
-                            closeWriteSTM = closeWriteSTM wr }
-
--}

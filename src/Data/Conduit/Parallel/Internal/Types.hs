@@ -9,7 +9,7 @@
 --
 -- This is an internal module of the Parallel Conduits.  You almost
 -- certainly want to use [Data.Conduit.Parallel](Data-Conduit-Parallel.html)
--- instead.  Anything -- in this module not explicitly re-exported 
+-- instead.  Anything in this module not explicitly re-exported 
 -- by [Data.Conduit.Parallel](Data-Conduit-Parallel.html)
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
