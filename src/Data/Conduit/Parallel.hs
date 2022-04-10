@@ -28,16 +28,18 @@ module Data.Conduit.Parallel(
     -- * Parallel Conduits
 
     -- ** The ParConduit Type
-    --
-    -- | And running a parallel conduit.
     ParConduit
-    -- , runParConduit
+
+
+    -- ** Running a ParConduit
+    , runParConduit
 
     -- * Parallel Arrows
 
 ) where
 
     import          Data.Conduit.Parallel.Internal.Conduit.Type
+    import          Data.Conduit.Parallel.Internal.Conduit.Run
 
     -- A comment on the image tags: I don't know how to include the image
     -- files as part of the documentation.  So instead, I (ab)use github

@@ -18,6 +18,10 @@
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
 --
+-- = Purpose
+--
+-- Provide the main @ParConduit@ type, and the associated type classes.
+--
 module Data.Conduit.Parallel.Internal.Conduit.Type where
 
     import qualified Control.Category           as Cat

@@ -20,6 +20,7 @@ Flag Devel
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Conduit.Parallel
+                        , Data.Conduit.Parallel.Internal.Conduit.Run
                         , Data.Conduit.Parallel.Internal.Conduit.Type
                         , Data.Conduit.Parallel.Internal.Copy
                         , Data.Conduit.Parallel.Internal.Duct
