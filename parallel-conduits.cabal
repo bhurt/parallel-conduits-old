@@ -19,19 +19,25 @@ Flag Devel
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Data.Conduit.Parallel.Internal.Duct
+  exposed-modules:     Data.Conduit.Parallel.Internal.Copy
+                        , Data.Conduit.Parallel.Internal.Duct
                         , Data.Conduit.Parallel.Internal.Duct.Create
                         , Data.Conduit.Parallel.Internal.Duct.No
                         , Data.Conduit.Parallel.Internal.Duct.Utils
                         , Data.Conduit.Parallel.Internal.Duct.Write
                         , Data.Conduit.Parallel.Internal.Spawn
+                        , Data.Conduit.Parallel.Internal.Types
+                        , Data.Conduit.Parallel.Internal.Utils
   build-depends:       base >= 4.7 && < 5
                         , containers
                         , kan-extensions
                         , mtl
+                        , profunctors
                         , stm
                         , these
+                        , transformers
                         , unliftio
+                        , unliftio-core
   default-language:    Haskell2010
   if flag(devel)
     ghc-options:       -O0

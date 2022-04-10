@@ -16,8 +16,8 @@
 -- notice.  Use at your own risk.
 
 module Data.Conduit.Parallel.Internal.Duct.Read(
-    readTuple,
-    readMerge
+    readBoth,
+    readTuple
 ) where
 
     import           Control.Monad.STM
@@ -31,38 +31,32 @@ module Data.Conduit.Parallel.Internal.Duct.Read(
     import           Data.Conduit.Parallel.Internal.Spawn
 
 
-    readBoth :: forall a b .
-                    STM (Maybe a)
-                    -> STM (Maybe b)
-                    -> STM (Maybe (a, b))
-    readBoth ra rb = catchSTM foo onE
+    readBoth :: forall m a b c .
+                    MonadIO m
+                    => (a -> b -> c)
+                    -> ReadDuct Simple m a
+                    -> ReadDuct Simple m b
+                    -> ReadDuct Complex m c
+    readBoth f rda rdb = ReadDuct go
         where
-            foo :: STM (Maybe (a, b))
-            foo = do
-                a <- bar ra
-                b <- bar rb
-                pure $ Just (a, b)
+            go :: WorkerThread m (STM (Maybe c))
+            go = do
+                ra :: STM (Maybe a) <- getReadDuct rda
+                rb :: STM (Maybe b) <- getReadDuct rdb
+                pure $ doRead ra rb
 
-            bar :: forall x .  STM (Maybe x) -> STM x
-            bar rx = do
-                r <- rx
-                case r of
-                    Just x -> pure x
-                    Nothing -> throwSTM ClosedDuctException
-
-            onE :: ClosedDuctException -> STM (Maybe (a, b))
-            onE ClosedDuctException = pure Nothing
+            doRead :: STM (Maybe a)
+                        -> STM (Maybe b)
+                        -> STM (Maybe c)
+            doRead ra rb = catchClosedDuct $ do
+                                a <- throwClosed ra
+                                b <- throwClosed rb
+                                pure $ f a b
 
     readTuple :: forall a b m .
                     MonadIO m
                     => ReadDuct Simple m a
                     -> ReadDuct Simple m b
                     -> ReadDuct Complex m (a, b)
-    readTuple rda rdb = ReadDuct go
-        where
-            go :: WorkerThread m (STM (Maybe (a, b)))
-            go = do
-                ra :: STM (Maybe a) <- getReadDuct rda
-                rb :: STM (Maybe b) <- getReadDuct rdb
-                pure $ readBoth ra rb
+    readTuple = readBoth (,)
 

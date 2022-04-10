@@ -15,10 +15,26 @@
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
 --
+-- = Purpose
+--
+-- This module contains various functions for combining several
+-- @Simple@ write endpoints into a single @Complex@ endpoint.
+-- 
+-- = Justification
+--
+-- The nice thing about using STM is that it /composes/.  It's natural
+-- to combine multiple STM actions into a single action.  So we can
+-- move most of the routing logic into STM actions.  So this module
+-- and [Duct.Read](Data-Conduit-Parallel-Internal-Duct-Read.html)
+-- end up with most of the logic of the whole library.
+--
 module Data.Conduit.Parallel.Internal.Duct.Write(
+    writeDuplicate,
     writeTuple,
     writeEither,
     writeThese,
+    writeEitherWitness,
+    writeTheseWitness,
     writeAll,
     writeAny,
     writeSeq
@@ -34,40 +50,48 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
     import           Data.Conduit.Parallel.Internal.Duct.Utils
     import           Data.Conduit.Parallel.Internal.Spawn
 
+    isClosed :: forall a m .
+                    MonadIO m
+                    => (a -> STM (Maybe ()))
+                    -> m (a -> STM (Maybe ()))
+    isClosed act = enforceClosed (\f -> (\a -> f (act a)))
+
+
     writeBoth :: forall a b .
                     (a -> STM (Maybe ()))
                     -> (b -> STM (Maybe ()))
                     -> (a, b)
                     -> STM (Maybe ())
-    writeBoth wa wb (a, b) = catchSTM foo onE
+    writeBoth wa wb (a, b) = catchClosedDuct $ do
+                                throwClosed $ wa a
+                                throwClosed $ wb b
+                                pure $ Just ()
+
+    writeDuplicate :: forall m a .
+                        MonadIO m
+                        => WriteDuct Simple m a
+                        -> WriteDuct Simple m a
+                        -> WriteDuct Simple m a
+    writeDuplicate wd1 wd2 = WriteDuct go
         where
+            go :: WorkerThread m (a -> STM (Maybe ()))
+            go = do
+                w1 <- getWriteDuct wd1
+                w2 <- getWriteDuct wd2
+                isClosed $ doWrite w1 w2
 
-            -- Note: we throw (with throwSTM) an exception when we
-            -- hit a closed write duct.  This undoes all the writes
-            -- we did to all the ducts up until that point.  Which
-            -- is the behavior we want- we either write to all the
-            -- write ducts, or none of them.  Note that this also
-            -- works when one (or more) ducts are full and can not
-            -- be written to- we retry everything.
-            foo :: STM (Maybe ())
-            foo = do
-                go a wa
-                go b wb
-                pure (Just ())
-
-            
-            go :: forall x . x -> (x -> STM (Maybe ())) -> STM ()
-            go x wx = do
-                r <- wx x
-                case r of
-                    Just () -> pure ()
-                    Nothing -> throwSTM ClosedDuctException
-
-            onE :: ClosedDuctException -> STM (Maybe ())
-            onE ClosedDuctException = pure Nothing
+            doWrite :: (a -> STM (Maybe ()))
+                        -> (a -> STM (Maybe ()))
+                        -> a
+                        -> STM (Maybe ())
+            doWrite w1 w2 a = catchClosedDuct $ do
+                throwClosed $ w1 a
+                throwClosed $ w2 a
+                pure $ Just ()
 
     writeTuple :: forall m a b .
-                    WriteDuct Simple m a
+                    MonadIO m
+                    => WriteDuct Simple m a
                     -> WriteDuct Simple m b
                     -> WriteDuct Complex m (a,b)
     writeTuple wda wdb = WriteDuct go
@@ -76,10 +100,11 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             go = do
                 wa <- getWriteDuct wda
                 wb <- getWriteDuct wdb
-                pure $ writeBoth wa wb
+                isClosed $ writeBoth wa wb
 
     writeEither :: forall a b m .
-                        WriteDuct Simple m a
+                        MonadIO m
+                        => WriteDuct Simple m a
                         -> WriteDuct Simple m b
                         -> WriteDuct Complex m (Either a b)
     writeEither wda wdb = WriteDuct go
@@ -88,7 +113,7 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             go = do
                 wa <- getWriteDuct wda
                 wb <- getWriteDuct wdb
-                pure $ doWrite wa wb
+                isClosed $ doWrite wa wb
 
             doWrite :: (a -> STM (Maybe ()))
                         -> (b -> STM (Maybe ()))
@@ -98,7 +123,8 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             doWrite _  wb (Right b) = wb b
 
     writeThese :: forall a b m .
-                        WriteDuct Simple m a
+                        MonadIO m
+                        => WriteDuct Simple m a
                         -> WriteDuct Simple m b
                         -> WriteDuct Complex m (These a b)
     writeThese wda wdb = WriteDuct go
@@ -107,7 +133,7 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             go = do
                 wa <- getWriteDuct wda
                 wb <- getWriteDuct wdb
-                pure $ doWrite wa wb
+                isClosed $ doWrite wa wb
 
             doWrite :: (a -> STM (Maybe ()))
                         -> (b -> STM (Maybe ()))
@@ -117,34 +143,72 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             doWrite _  wb (That    b) = wb b
             doWrite wa wb (These a b) = writeBoth wa wb (a, b)
 
+    writeEitherWitness :: forall a b m .
+                            MonadIO m
+                            => WriteDuct Simple m (Either () ())
+                            -> WriteDuct Simple m a
+                            -> WriteDuct Simple m b
+                            -> WriteDuct Complex m (Either a b)
+    writeEitherWitness wdw wda wdb = WriteDuct go
+        where
+            go :: WorkerThread m (Either a b -> STM (Maybe ()))
+            go = do
+                ww <- getWriteDuct wdw
+                wa <- getWriteDuct wda
+                wb <- getWriteDuct wdb
+                isClosed $ doWrite ww wa wb
+
+            doWrite :: (Either () () -> STM (Maybe ()))
+                        -> (a -> STM (Maybe ()))
+                        -> (b -> STM (Maybe ()))
+                        -> Either a b
+                        -> STM (Maybe ())
+            doWrite ww wa _  (Left  a) = writeBoth ww wa (Left  (), a)
+            doWrite ww _  wb (Right b) = writeBoth ww wb (Right (), b)
+
+    writeTheseWitness :: forall a b m .
+                            MonadIO m
+                            => WriteDuct Simple m (These () ())
+                            -> WriteDuct Simple m a
+                            -> WriteDuct Simple m b
+                            -> WriteDuct Complex m (These a b)
+    writeTheseWitness wdw wda wdb = WriteDuct go
+        where
+            go :: WorkerThread m (These a b -> STM (Maybe ()))
+            go = do
+                ww <- getWriteDuct wdw
+                wa <- getWriteDuct wda
+                wb <- getWriteDuct wdb
+                isClosed $ doWrite ww wa wb
+
+            doWrite :: (These () () -> STM (Maybe ()))
+                        -> (a -> STM (Maybe ()))
+                        -> (b -> STM (Maybe ()))
+                        -> These a b
+                        -> STM (Maybe ())
+            doWrite ww wa _  (This  a  ) = writeBoth ww wa (This  (), a)
+            doWrite ww _  wb (That    b) = writeBoth ww wb (That (), b)
+            doWrite ww wa wb (These a b) = catchClosedDuct $ do
+                throwClosed $ ww (These () ())
+                throwClosed $ wa a
+                throwClosed $ wb b
+                pure $ Just ()
+
     writeAll :: forall a m .
-                    [ WriteDuct Simple m a ]
+                    MonadIO m
+                    => [ WriteDuct Simple m a ]
                     -> WriteDuct Complex m a
     writeAll ducts = WriteDuct go
         where
             go :: WorkerThread m (a -> STM (Maybe ()))
             go = do
                 writes :: [ (a -> STM (Maybe ())) ] <- mapM getWriteDuct ducts
-                pure $ doWrite writes
+                isClosed $ doWrite writes
 
-            -- Same stunt with throwSTM that we did with writeTuple.
             doWrite :: [ (a -> STM (Maybe ())) ] -> a -> STM (Maybe ())
-            doWrite ws a = catchSTM (loop ws a) onE
-
-            onE :: ClosedDuctException  -> STM (Maybe ())
-            onE ClosedDuctException = pure Nothing
-
-            loop :: [ (a -> STM (Maybe ())) ] -> a -> STM (Maybe ())
-            loop ws a = do
-                mapM_ (doAWrite a) ws
-                pure (Just ())
-
-            doAWrite :: a -> (a -> STM (Maybe ())) -> STM ()
-            doAWrite a wa = do
-                r <- wa a
-                case r of
-                    Just () -> pure ()
-                    Nothing -> throwSTM ClosedDuctException
+            doWrite ws a = catchClosedDuct $ do
+                                mapM_ (\d -> throwClosed (d a)) ws
+                                pure $ Just ()
 
     writeAny :: forall a m .
                     MonadIO m
@@ -156,7 +220,7 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             go = do
                 writes :: [ (a -> STM (Maybe ())) ] <- mapM getWriteDuct ducts
                 wvar <- newTVarIO . Seq.fromList $ writes
-                pure $ doWrite wvar
+                isClosed $ doWrite wvar
 
             doWrite :: TVar (Seq (a -> STM (Maybe ())))
                         -> a
@@ -200,7 +264,7 @@ module Data.Conduit.Parallel.Internal.Duct.Write(
             go = do
                 writes :: [ (a -> STM (Maybe ())) ] <- mapM getWriteDuct ducts
                 wvar <- newTVarIO . Seq.fromList $ writes
-                pure $ doWrite wvar
+                isClosed $ doWrite wvar
     
             doWrite :: TVar (Seq (a -> STM (Maybe ())))
                         -> a
