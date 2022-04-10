@@ -20,6 +20,7 @@ Flag Devel
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Conduit.Parallel
+                        , Data.Conduit.Parallel.Internal.Conduit.Type
                         , Data.Conduit.Parallel.Internal.Copy
                         , Data.Conduit.Parallel.Internal.Duct
                         , Data.Conduit.Parallel.Internal.Duct.Create
@@ -27,7 +28,6 @@ library
                         , Data.Conduit.Parallel.Internal.Duct.Utils
                         , Data.Conduit.Parallel.Internal.Duct.Write
                         , Data.Conduit.Parallel.Internal.Spawn
-                        , Data.Conduit.Parallel.Internal.Types
                         , Data.Conduit.Parallel.Internal.Utils
   build-depends:       base >= 4.7 && < 5
                         , containers

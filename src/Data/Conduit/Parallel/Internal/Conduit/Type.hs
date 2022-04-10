@@ -2,8 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Data.Conduit.Parallel.Internal.Types
--- Description : Parallel Conduit Types
+-- Module      : Data.Conduit.Parallel.Internal.Conduit.Type
+-- Description : Parallel Conduit Type
 -- Copyright   : (c) Brian Hurt, 2022
 -- License     : BSD 3-clause
 -- Maintainer  : bhurt42@gmail.com
@@ -18,7 +18,7 @@
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
 --
-module Data.Conduit.Parallel.Internal.Types where
+module Data.Conduit.Parallel.Internal.Conduit.Type where
 
     import qualified Control.Category           as Cat
     import           Control.Monad.IO.Unlift
@@ -43,6 +43,9 @@ module Data.Conduit.Parallel.Internal.Types where
     --
     --  * @o@ is the type of values being produced, the "output" type
     --
+    -- Pictorially, we might represent a Conduit segment like:
+    --
+    -- <<https://raw.githubusercontent.com/bhurt/parallel-conduits/master/docs/ParConduit.svg example>>
     --
     -- Note that the type variables are in a different order than
     -- normal Conduits.  There are two reasons for this:
