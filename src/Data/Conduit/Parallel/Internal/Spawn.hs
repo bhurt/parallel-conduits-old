@@ -9,6 +9,8 @@
 -- Maintainer  : bhurt42@gmail.com
 -- Stability   : experimental
 --
+-- = Warning
+--
 -- This is an internal module of the Parallel Conduits.  You almost
 -- certainly want to use [Data.Conduit.Parallel](Data-Conduit-Parallel.html)
 -- instead.  Anything in this module not explicitly re-exported 
@@ -16,21 +18,39 @@
 -- is for internal use only, and will change or disappear without
 -- notice.  Use at your own risk.
 --
--- This module handles thread spawning and thread maangement.  Our
--- overall structure is that we have two different kinds of threads:
+-- = Purpose
+--
+-- This module handles thread spawning and thread maangement.  
+--
+-- = Kinds of Threads
+--
+-- Our overall structure is that we have two different kinds of threads:
 --
 -- [@Control Thread@] Spawns one or more worker threads and then
 -- waits for them to complete.  Generally there is only one
--- @Control Thread@.
+-- @Control Thread@, so we tend to refer to /the/ @Control Thread@.
+--
 -- [@Worker Thread@] A Thread which actually does work.  This includes
 -- both threads doing user-defined work (running ordinary Conduits,
 -- etc.) and shim threads created by the library to avoid the thundering
--- herd problem (see [Data.Conduit.Parallel.Internal.Duct](Data-Conduit-Parallel-Internal-Duct.html) for more information).
+-- herd problem (see [Data.Conduit.Parallel.Internal.Duct](Data-Conduit-Parallel-Internal-Duct.html) for more information).  There are generally a lot
+-- of these, so we refer to /a/ @Control Thread@.
 --
--- We use Codensity (from the Kan-Extensions library) instead of ContT
--- because the forall's are in a nicer place.  But they're essentially
--- the same monad.  Good resource on the ContT monad:
+-- = Continuation Passing Style
+--
+-- Both the @Control Thread@ and all the @Worker Thread@s are mainly
+-- focused on acquiring and releasing resources.  So the Continuation
+-- passing style is used very heavy.  This means that it's worth while
+-- to use a CPS-style monad, like @ContT@ or @Codensity@.  A good resource
+-- on the @ContT@ monad:
 -- <https://ro-che.info/articles/2019-06-07-why-use-contt>
+--
+-- We use @Codensity@ (from the Kan-Extensions library) instead of @ContT@
+-- because the forall's are in a nicer place.  If we used @ContT@, we'd
+-- have to be doing @forall r . ContT r m a@ everywhere, meaning we'd
+-- need to be enabling @RankNTypes@ everywhere.  @Codensity@ moves the
+-- @forall r . @ into the definition of the monad.  But other than that,
+-- they're essentially the same monad.  
 --
 module Data.Conduit.Parallel.Internal.Spawn where
 

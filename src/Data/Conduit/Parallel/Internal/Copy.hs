@@ -8,6 +8,8 @@
 -- Maintainer  : bhurt42@gmail.com
 -- Stability   : experimental
 --
+-- = Warning
+--
 -- This is an internal module of the Parallel Conduits.  You almost
 -- certainly want to use [Data.Conduit.Parallel](Data-Conduit-Parallel.html)
 -- instead.  Anything in this module not explicitly re-exported 
