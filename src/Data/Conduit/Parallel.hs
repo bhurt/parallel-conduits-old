@@ -34,6 +34,9 @@ module Data.Conduit.Parallel(
     -- ** Running a ParConduit
     , runParConduit
 
+    -- ** Mapping the Result
+    , mapResult
+
     -- * Parallel Arrows
 
 ) where

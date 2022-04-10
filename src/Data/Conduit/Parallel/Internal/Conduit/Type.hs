@@ -118,4 +118,18 @@ module Data.Conduit.Parallel.Internal.Conduit.Type where
                                 (getParConduit pc2)
                                 (getParConduit pc1)
 
+    -- | Map the result type of a ParConduit.
+    --
+    -- Given that the type parameters of ParConduit are in a different
+    -- order, the default @Functor@ implementation maps the output
+    -- type (@o@) not the result type (@r@).  Which is more often
+    -- what is desired.  This functions allows mapping the result
+    -- type, when that is what is desired.
+    --
+    mapResult :: forall m i o r1 r2 .
+                    Functor m
+                    => (r1 -> r2)
+                    -> ParConduit m r1 i o
+                    -> ParConduit m r2 i o
+    mapResult f p = ParConduit $ \r w -> fmap f <$> getParConduit p r w
 
