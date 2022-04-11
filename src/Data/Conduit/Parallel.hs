@@ -34,6 +34,9 @@ module Data.Conduit.Parallel(
     -- ** Running a ParConduit
     , runParConduit
 
+    -- ** Creating a ParConduit
+    , liftConduit
+
     -- ** Mapping the Result
     , mapResult
 
@@ -41,8 +44,9 @@ module Data.Conduit.Parallel(
 
 ) where
 
-    import          Data.Conduit.Parallel.Internal.Conduit.Type
-    import          Data.Conduit.Parallel.Internal.Conduit.Run
+    import           Data.Conduit.Parallel.Internal.Conduit.Create
+    import           Data.Conduit.Parallel.Internal.Conduit.Run
+    import           Data.Conduit.Parallel.Internal.Conduit.Type
 
     -- A comment on the image tags: I don't know how to include the image
     -- files as part of the documentation.  So instead, I (ab)use github
