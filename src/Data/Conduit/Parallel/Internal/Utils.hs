@@ -38,15 +38,15 @@ module Data.Conduit.Parallel.Internal.Utils where
                     -> (ReadDuct Simple m i
                             -> WriteDuct Simple m x
                             -> ControlThread m (m r1))
-                    -- ^ @ParConduit m r1 i x@ or @ParArrow m r1 i x@
+                    -- ^ @ParConduit m r1 i x@ or @ParArrow m i x@
                     -> (ReadDuct Simple m x
                             -> WriteDuct Simple m o
                             -> ControlThread m (m r2))
-                    -- ^ @ParConduit m r2 x o@ or @ParArrow m r2 x o@
+                    -- ^ @ParConduit m r2 x o@ or @ParArrow m x o@
                     -> (ReadDuct Simple m i
                         -> WriteDuct Simple m o
                         -> ControlThread m (m r))
-                    -- ^ @ParConduit m r i o@ or @ParArrow m r i o@
+                    -- ^ @ParConduit m r i o@ or @ParArrow m i o@
     fuseInternal f pc1 pc2 ri wo = do
         d <- createSimpleDuct
         m1 <- pc1 ri (getWriteEndpoint d)
@@ -67,15 +67,15 @@ module Data.Conduit.Parallel.Internal.Utils where
                 -> (ReadDuct Simple m i1
                     -> WriteDuct Simple m o1
                     -> ControlThread m (m r1))
-                -- ^ @ParConduit m r1 i1 o1@ or @ParArrow m r1 i1 o1@
+                -- ^ @ParConduit m r1 i1 o1@ or @ParArrow m i1 o1@
                 -> (ReadDuct Simple m i2
                     -> WriteDuct Simple m o2
                     -> ControlThread m (m r2))
-                -- ^ @ParConduit m r2 i2 o2@ or @ParArrow m r2 i2 o2@ 
+                -- ^ @ParConduit m r2 i2 o2@ or @ParArrow m i2 o2@ 
                 -> (ReadDuct Simple m i
                     -> WriteDuct Simple m o
                     -> ControlThread m (m r))
-                -- ^ @ParConduit m r i o@ or @ParArrow m r i o@
+                -- ^ @ParConduit m r i o@ or @ParArrow m i o@
     splice fixR mergeWrite mergeRead pc1 pc2 rd wr = do
         di1 :: Duct Simple m i1 <- createSimpleDuct
         di2 :: Duct Simple m i2 <- createSimpleDuct
@@ -102,5 +102,4 @@ module Data.Conduit.Parallel.Internal.Utils where
                     m4
                     pure $ fixR r1 r2
         pure $ r
-
 
