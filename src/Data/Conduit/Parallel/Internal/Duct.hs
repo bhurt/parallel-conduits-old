@@ -35,8 +35,10 @@
 --
 -- This implementation uses STM.  The advantage of STM is that we can easily
 -- define our own "MVar-plus" type around a single TVar holding a
--- `DuctState`.  Even more so, we can build up a new Duct endpoint
--- ontop of multiple other duct endpoints- see `writeTuple`, `writeEither`,
+-- @DuctState@.  Even more so, we can build up a new Duct endpoint
+-- ontop of multiple other duct endpoints- see
+-- `Data.Conduit.Parallel.Internal.Duct.Write.writeTuple`,
+-- `Data.Conduit.Parallel.Internal.Duct.Write.writeEither`,
 -- etc. for examples.
 --
 -- The problem with STM is that it does give rise to the "thundering herd"
