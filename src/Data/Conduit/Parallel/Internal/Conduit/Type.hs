@@ -89,8 +89,8 @@ module Data.Conduit.Parallel.Internal.Conduit.Type where
     --
     newtype ParConduit m r i o =
         ParConduit {
-            getParConduit :: ReadDuct Simple m i
-                                -> WriteDuct Simple m o
+            getParConduit :: ReadDuct m i
+                                -> WriteDuct m o
                                 -> ControlThread m (m r) }
 
     instance Functor m => Functor (ParConduit m r i) where

@@ -44,17 +44,17 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
                     -> STM ()                   -- ^ readClose
                     -> (a -> STM (Maybe ()))    -- ^ doWrite
                     -> STM ()                   -- ^ writeClose
-                    -> Duct Simple m a
+                    -> Duct m a
     createDuct doRead readClose doWrite writeClose = Duct {
                     getReadEndpoint = readEndpoint,
                     getWriteEndpoint = writeEndpoint }
         where
-            readEndpoint :: ReadDuct Simple m a
+            readEndpoint :: ReadDuct m a
             readEndpoint = ReadDuct $ workerThreadBracket
                                         (pure doRead)
                                         (const (safeAtomically readClose))
 
-            writeEndpoint :: WriteDuct Simple m a
+            writeEndpoint :: WriteDuct m a
             writeEndpoint = WriteDuct $ workerThreadBracket
                                             (pure doWrite)
                                             (const (safeAtomically writeClose))
@@ -69,8 +69,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     -- | Create a duct with a single element queue.
     --
     -- The commonest form of simple queues, those that can hold
-    -- at most a single value.  As every read and write is just
-    -- accessing a single TVar, these ducts are @Simple@.
+    -- at most a single value.
     --
     -- Note that simple ducts are very closely modeled on MVars, just
     -- with the additional ability to be closed.  They can only hold
@@ -92,7 +91,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     --
     createSimpleDuct :: forall a m .
                         MonadUnliftIO m
-                        => ControlThread m (Duct Simple m a)
+                        => ControlThread m (Duct m a)
     createSimpleDuct = do
             tvar <- newTVarIO Empty
             return $ createDuct (doRead tvar) (readClose tvar)
@@ -136,9 +135,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     -- We need a TVar to hold the flag that we are closed, plus either
     -- a TBQueue or TQueue (depending) to hold the queue of items.  So
     -- every read or write is at most 2 TVar accesses (one for the flag,
-    -- one for the queue).  This is cheap enough for the queues to
-    -- still be @Simple@ however.
-    --
+    -- one for the queue).    --
     createQueueDuct :: forall a m q .
                         MonadUnliftIO m
                         => IO (q a)                
@@ -149,7 +146,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
                             -- ^ write to the queue (writeTQueue)
                         -> (q a -> STM [a])
                             -- ^ flush the queue (flushTQueue)
-                        -> ControlThread m (Duct Simple m a)
+                        -> ControlThread m (Duct m a)
     createQueueDuct makeQ readQ writeQ flushQ = liftIO $ do
             isOpen <- newTVarIO True
             q <- liftIO makeQ
@@ -225,7 +222,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     createBoundedQueueDuct :: forall a m .
                                 MonadUnliftIO m
                                 => Natural
-                                -> ControlThread m (Duct Simple m a)
+                                -> ControlThread m (Duct m a)
     createBoundedQueueDuct n = 
         createQueueDuct (TBQueue.newTBQueueIO n) TBQueue.tryReadTBQueue
                             TBQueue.writeTBQueue TBQueue.flushTBQueue
@@ -268,7 +265,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     --
     createUnboundedQueueDuct :: forall a m .
                                 MonadUnliftIO m
-                                => ControlThread m (Duct Simple m a)
+                                => ControlThread m (Duct m a)
     createUnboundedQueueDuct = 
         createQueueDuct TQueue.newTQueueIO TQueue.tryReadTQueue
                             TQueue.writeTQueue TQueue.flushTQueue

@@ -35,16 +35,16 @@ module Data.Conduit.Parallel.Internal.Utils where
                     MonadUnliftIO m
                     => (r1 -> r2 -> r)
                     -- ^ Combine results (mappend)
-                    -> (ReadDuct Simple m i
-                            -> WriteDuct Simple m x
+                    -> (ReadDuct m i
+                            -> WriteDuct m x
                             -> ControlThread m (m r1))
                     -- ^ @ParConduit m r1 i x@ or @ParArrow m i x@
-                    -> (ReadDuct Simple m x
-                            -> WriteDuct Simple m o
+                    -> (ReadDuct m x
+                            -> WriteDuct m o
                             -> ControlThread m (m r2))
                     -- ^ @ParConduit m r2 x o@ or @ParArrow m x o@
-                    -> (ReadDuct Simple m i
-                        -> WriteDuct Simple m o
+                    -> (ReadDuct m i
+                        -> WriteDuct m o
                         -> ControlThread m (m r))
                     -- ^ @ParConduit m r i o@ or @ParArrow m i o@
     fuseInternal f pc1 pc2 ri wo = do
@@ -58,29 +58,29 @@ module Data.Conduit.Parallel.Internal.Utils where
                 MonadUnliftIO m
                 => (r1 -> r2 -> r)
                 -- ^ Combine results (mappend)
-                -> (WriteDuct Simple m i1 -> WriteDuct Simple m i2
-                        -> WriteDuct Complex m i)
+                -> (WriteDuct m i1 -> WriteDuct m i2
+                        -> WriteDuct m i)
                 -- ^ Combine inputs
-                -> (ReadDuct Simple m o1 -> ReadDuct Simple m o2
-                        -> ReadDuct Complex m o)
+                -> (ReadDuct m o1 -> ReadDuct m o2
+                        -> ReadDuct m o)
                 -- ^ Combine outputs
-                -> (ReadDuct Simple m i1
-                    -> WriteDuct Simple m o1
+                -> (ReadDuct m i1
+                    -> WriteDuct m o1
                     -> ControlThread m (m r1))
                 -- ^ @ParConduit m r1 i1 o1@ or @ParArrow m i1 o1@
-                -> (ReadDuct Simple m i2
-                    -> WriteDuct Simple m o2
+                -> (ReadDuct m i2
+                    -> WriteDuct m o2
                     -> ControlThread m (m r2))
                 -- ^ @ParConduit m r2 i2 o2@ or @ParArrow m i2 o2@ 
-                -> (ReadDuct Simple m i
-                    -> WriteDuct Simple m o
+                -> (ReadDuct m i
+                    -> WriteDuct m o
                     -> ControlThread m (m r))
                 -- ^ @ParConduit m r i o@ or @ParArrow m i o@
     splice fixR mergeWrite mergeRead pc1 pc2 rd wr = do
-        di1 :: Duct Simple m i1 <- createSimpleDuct
-        di2 :: Duct Simple m i2 <- createSimpleDuct
-        do1 :: Duct Simple m o1 <- createSimpleDuct
-        do2 :: Duct Simple m o2 <- createSimpleDuct
+        di1 :: Duct m i1 <- createSimpleDuct
+        di2 :: Duct m i2 <- createSimpleDuct
+        do1 :: Duct m o1 <- createSimpleDuct
+        do2 :: Duct m o2 <- createSimpleDuct
         m1 :: m r1 <- pc1 (getReadEndpoint di1)
                             (getWriteEndpoint do1)
         m2 :: m r2 <- pc2 (getReadEndpoint di2)

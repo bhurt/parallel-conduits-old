@@ -1,5 +1,4 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE InstanceSigs        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
@@ -56,58 +55,19 @@
 -- multiple ducts).  In this library, it's not a problem, but this sharp
 -- corner of ducts is why they will never be made into their own library.
 --
--- = Duct Flavors
---
--- Ducts endpoints come in two flavors:
---
---  [@Simple@] endpoints are where reading from or writing to the duct
---      is cheap- reading or writing a TVar or less.
---  [@Complex@] endpoints are where reading from or writing to the
---      duct can be expensive.  Duct endpoints which are constructed
---      out of other duct endpoints are @Complex@.
---
--- == Motivation for Flavors
---
--- The difference is that it's not worth it to avoid re-reading or
--- re-writing @Simple@ endpoints.  This is important when we're
--- combining multiple endpoints into a single endpoint- if we combine
--- multiple @Complex@ endpoints together can have surprising performance
--- problems.  So we avoid it by only combining @Simple@ endpoints.  And
--- we use a phantom type variable to enforce this.
---
 module Data.Conduit.Parallel.Internal.Duct where
 
+    import           Control.Applicative
     import           Control.Concurrent.STM
+    import           Control.Monad.IO.Class
+    import           Control.Monad.Trans.Maybe
+    import           Control.Selective
     import           Data.Functor.Contravariant
+    import           Data.Functor.Contravariant.Divisible
+    import           Data.These
 
+    import           Data.Conduit.Parallel.Internal.Duct.Utils
     import           Data.Conduit.Parallel.Internal.Spawn
-
-    -- | The flavor of a duct endpoint, lifted to a kind.
-    --
-    -- We're using the DataKinds extension in this module, so
-    -- Flavor is also a Kind.
-    data Flavor =
-        SimpleFlavor    -- ^ Simple duct endpoints
-        | ComplexFlavor -- ^ Complex duct endpoints
-
-    -- | Phantom Type for Simple Endpoints
-    --
-    -- Note that DataKinds-defined types can't be exported from a
-    -- module.  Only the data type is exported.  Which means that
-    -- the importing module needs to have DataKinds enabled as
-    -- well.  But by making a type synonym, we /can/ export that.
-    --
-    -- So the DataKinds type is @SimpleFlavor@, the type synomym
-    -- is @Simple@, and I just use @Simple@ everywhere else without
-    -- having to enable DataKinds.
-    --
-    type Simple = 'SimpleFlavor
-
-    -- | Phantom Type for Complex Endpoints
-    --
-    -- See `Simple` for an explanation of what is going on here.
-    --
-    type Complex = 'ComplexFlavor
 
     -- | A duct, which is the pair of a read endpoint and a write endpoint.
     --
@@ -115,13 +75,13 @@ module Data.Conduit.Parallel.Internal.Duct where
     -- which ever order I return the two endpoints in, I'll screw
     -- it up about half the time.
     --
-    data Duct (t :: Flavor) m a =
+    data Duct m a =
         Duct {
             -- | Get the read endpoint of the duct.
-            getReadEndpoint  :: ReadDuct t m a,
+            getReadEndpoint  :: ReadDuct m a,
 
             -- | Get the write endpoint of the duct.
-            getWriteEndpoint :: WriteDuct t m a }
+            getWriteEndpoint :: WriteDuct m a }
 
 
     -- | The read endpoint of a duct.
@@ -139,13 +99,64 @@ module Data.Conduit.Parallel.Internal.Duct where
     -- Once the worker thread exits (and the STM action is released)
     -- the duct will be closed.
     --
-    newtype ReadDuct (t :: Flavor) m a =
+    newtype ReadDuct m a =
         ReadDuct {
             getReadDuct :: WorkerThread m (STM (Maybe a)) }
 
-    instance Functor m => Functor (ReadDuct t m) where
+    instance Functor m => Functor (ReadDuct m) where
         fmap f rd = ReadDuct $ fmap (fmap f) <$> getReadDuct rd
 
+    instance MonadIO m => Applicative (ReadDuct m) where
+        pure :: forall a . a -> ReadDuct m a
+        pure a = ReadDuct $ pure (pure (Just a))
+
+        liftA2 :: forall a b c .
+                    (a -> b -> c)
+                    -> ReadDuct m a
+                    -> ReadDuct m b
+                    -> ReadDuct m c
+        liftA2 f da db = ReadDuct go
+            where
+                go :: WorkerThread m (STM (Maybe c))
+                go = do
+                    ra :: STM (Maybe a) <- getReadDuct da
+                    rb :: STM (Maybe b) <- getReadDuct db
+                    enforceClosed $ \g -> g (doRead ra rb)
+
+                doRead :: STM (Maybe a)
+                            -> STM (Maybe b)
+                            -> STM (Maybe c)
+                doRead ra rb = catchClosedDuct $ do
+                    a <- throwClosed ra
+                    b <- throwClosed rb
+                    pure . Just $ f a b
+
+    -- | Selective gives us a whole slew of useful functions.
+    --
+    -- See <https://hackage.haskell.org/package/selective-0.5/docs/Control-Selective.html>
+    instance MonadIO m => Selective (ReadDuct m) where
+        select :: forall a b .
+                    ReadDuct m (Either a b)
+                    -> ReadDuct m (a -> b)
+                    -> ReadDuct m b
+        select de df = ReadDuct go
+            where
+                go :: WorkerThread m (STM (Maybe b))
+                go = do
+                    re :: STM (Maybe (Either a b)) <- getReadDuct de
+                    rf :: STM (Maybe (a -> b)) <- getReadDuct df
+                    enforceClosed $ \g -> g (doRead re rf)
+
+                doRead :: STM (Maybe (Either a b))
+                            -> STM (Maybe (a -> b))
+                            -> STM (Maybe b)
+                doRead re rf = runMaybeT $ do
+                    e <- MaybeT re
+                    case e of
+                        Left a -> do
+                            f <- MaybeT rf
+                            pure $ f a
+                        Right b -> pure b
 
     -- | The write endpoint of a duct.
     --
@@ -162,10 +173,66 @@ module Data.Conduit.Parallel.Internal.Duct where
     -- Once the worker thread exits (and the STM action is released)
     -- the duct will be closed.
     --
-    newtype WriteDuct (t :: Flavor) m a =
+    newtype WriteDuct m a =
         WriteDuct {
             getWriteDuct :: WorkerThread m (a -> STM (Maybe ())) }
 
-    instance Functor m => Contravariant (WriteDuct t m) where
+    instance Functor m => Contravariant (WriteDuct m) where
         contramap f wd = WriteDuct $ (. f) <$> getWriteDuct wd
 
+    writeFilter :: forall m a .
+                    MonadIO m
+                    => WriteDuct m a
+                    -> WriteDuct m (Maybe a)
+    writeFilter da = WriteDuct go
+        where
+            go :: WorkerThread m (Maybe a -> STM (Maybe ()))
+            go = do
+                wa <- getWriteDuct da
+                enforceClosed $ \f -> \a -> f (doWrite wa a)
+
+            doWrite :: (a -> STM (Maybe ()))
+                        -> Maybe a
+                        -> STM (Maybe ())
+            doWrite _  Nothing  = pure $ Just ()
+            doWrite wa (Just a) = wa a
+
+    writeThose :: forall m a b c .
+                    MonadIO m
+                    => (a -> These b c)
+                    -> WriteDuct m b
+                    -> WriteDuct m c
+                    -> WriteDuct m a
+    writeThose f db dc = WriteDuct go
+        where
+            go :: WorkerThread m (a -> STM (Maybe ()))
+            go = do
+                wb :: (b -> STM (Maybe ())) <- getWriteDuct db
+                wc :: (c -> STM (Maybe ())) <- getWriteDuct dc
+                enforceClosed $ \g -> \a -> g (doWrite wb wc a)
+
+            doWrite :: (b -> STM (Maybe ()))
+                        -> (c -> STM (Maybe ()))
+                        -> a
+                        -> STM (Maybe ())
+            doWrite wb wc a = do
+                case (f a) of
+                    This  b   -> wb b
+                    That    c -> wc c
+                    These b c -> catchClosedDuct $ do
+                                    throwClosed $ wb b
+                                    throwClosed $ wc c
+                                    pure $ Just ()
+
+    instance MonadIO m => Divisible  (WriteDuct m) where
+        divide f = writeThose (\a -> let (b, c) = f a in These b c)
+        conquer = WriteDuct (pure (const (pure (Just ()))))
+        
+
+    instance MonadIO m => Decidable (WriteDuct m) where
+        lose _ = WriteDuct (pure (const (pure Nothing)))
+        choose f = writeThose go
+            where
+                go a = case (f a) of
+                            Left b  -> This b
+                            Right c -> That c

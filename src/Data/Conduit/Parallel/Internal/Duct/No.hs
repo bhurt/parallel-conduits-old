@@ -34,7 +34,7 @@ module Data.Conduit.Parallel.Internal.Duct.No where
     -- is useful for situations where a parallel conduit should not read
     -- any values (i.e. it is a source).  It's special cased because
     -- it can be more efficiently implemented.
-    noRead :: ReadDuct Simple m ()
+    noRead :: ReadDuct m ()
     noRead = ReadDuct $ pure (pure Nothing)
 
     -- | Pre-closed write conduit.
@@ -44,7 +44,7 @@ module Data.Conduit.Parallel.Internal.Duct.No where
     -- any values (i.e. it is a sink).  It's special cased because it can
     -- be more efficiently implemented.
     --
-    noWrite :: WriteDuct Simple m Void
+    noWrite :: WriteDuct m Void
     noWrite = WriteDuct $ pure absurd
 
 

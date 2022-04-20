@@ -50,8 +50,8 @@ module Data.Conduit.Parallel.Internal.Conduit.Create where
                         -> ParConduit m r i o
     basicParConduit act = ParConduit $ \rd wd -> spawn (worker rd wd)
         where
-            worker :: ReadDuct Simple m i
-                        -> WriteDuct Simple m o
+            worker :: ReadDuct m i
+                        -> WriteDuct m o
                         -> WorkerThread m r
             worker rd wd = do
                 r <- getReadDuct rd

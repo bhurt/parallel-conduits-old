@@ -68,12 +68,11 @@ module Data.Conduit.Parallel.Internal.Copy(
 
     -- | Copy values from a read duct to a write duct unchanged.
     --
-    -- This is the main code for shim threads.  Note that either of
-    -- the ducts involved may be complex.
-    copyThread :: forall t u m a .
+    -- This is the main code for shim threads.
+    copyThread :: forall m a .
                     MonadIO m
-                    => ReadDuct t m a
-                    -> WriteDuct u m a
+                    => ReadDuct m a
+                    -> WriteDuct m a
                     -> WorkerThread m ()
     copyThread wrd wwd = do
         rd <- getReadDuct wrd
@@ -90,9 +89,9 @@ module Data.Conduit.Parallel.Internal.Copy(
     -- Used when we have a duct that we don't know is already closed,
     -- but that we want to discard the elements from.
     --
-    discardThread :: forall t m a .
+    discardThread :: forall m a .
                         MonadIO m
-                        => ReadDuct t m a
+                        => ReadDuct m a
                         -> WorkerThread m ()
     discardThread wrd = do
         rd <- getReadDuct wrd
@@ -103,9 +102,9 @@ module Data.Conduit.Parallel.Internal.Copy(
         runLoop loop
 
     -- | Continually write a constant value to a write duct.
-    spamThread :: forall t m a .
+    spamThread :: forall m a .
                     MonadIO m
-                    => WriteDuct t m a
+                    => WriteDuct m a
                     -> a
                     -> WorkerThread m ()
     spamThread wwd a = do
