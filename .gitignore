@@ -23,3 +23,5 @@ cabal.project.local~
 .ghc.environment.*
 .*.sw?
 stack.yaml.lock
+*.dia.autosave
+TODO
