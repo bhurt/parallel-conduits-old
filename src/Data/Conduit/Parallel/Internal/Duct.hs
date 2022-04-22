@@ -131,6 +131,85 @@ module Data.Conduit.Parallel.Internal.Duct where
                     b <- throwClosed rb
                     pure . Just $ f a b
 
+    -- | Merge two read ducts fairly.
+    --
+    -- We don't implement Alternative as a type class for ReadDucts, even
+    -- though we could, because the semantics are wrong.  The @<|>@ operator
+    -- explicitly favors the first duct over the second.  Which is normally
+    -- the right thing for Alternative implementations, but not here.  Also,
+    -- the @some@ and @many@ functions makes little sense here.
+    --
+    -- Instead, we provide the following function which prefers whichever
+    -- duct which least recently supplied a value.  This makes things
+    -- fairer.
+    alternate :: forall a m .
+                    MonadIO m
+                    => ReadDuct m a
+                    -> ReadDuct m a
+                    -> ReadDuct m a
+    alternate rd1 rd2 = ReadDuct go
+        where
+            go :: WorkerThread m (STM (Maybe a))
+            go = do
+                r1 :: STM (Maybe a) <- getReadDuct rd1
+                r2 :: STM (Maybe a) <- getReadDuct rd2
+                f :: TVar Bool <- liftIO $ newTVarIO True
+                enforceClosed $ \g -> g (doRead f r1 r2)
+
+            doRead :: TVar Bool
+                        -> STM (Maybe a)
+                        -> STM (Maybe a)
+                        -> STM (Maybe a)
+            doRead f r1 r2 = do
+                t <- readTVar f
+                if t
+                then doRead' t f r1 r2
+                else doRead' t f r2 r1
+
+            doRead' :: Bool
+                        -> TVar Bool
+                        -> STM (Maybe a)
+                        -> STM (Maybe a)
+                        -> STM (Maybe a)
+            doRead' t f r1 r2 = do
+                ma1 :: Maybe (Maybe a) <- catchRetry r1
+                case ma1 of
+                    Nothing -> do
+                        -- r1 retried.
+                        -- If r2 retries, we retry the whole action and
+                        -- the flag doesn't change (we still prefer r1).
+                        ma2 :: Maybe a <- r2
+                        case ma2 of
+                            Nothing ->
+                                -- If r2 is closed, we retry the whole action
+                                -- and the flag doesn't change (we still
+                                -- prefer r1).
+                                retry
+                            Just a ->
+                                -- If r2 succeeds, we succeed, but the flag
+                                -- still doesn't change (we prefer r1)
+                                pure $ Just a
+                    Just Nothing -> do
+                        -- r1 is closed.  If r2 retries, we retry the whole
+                        -- action.  If r2 is closed, we're closed.  If r2
+                        -- succeeds, we succeed.  This implies we just
+                        -- call r2.
+                        --
+                        -- Note that this means we'll retry r1 and discover
+                        -- it's closed (again).  No help for this minor
+                        -- inefficiency.  And it is just a minor
+                        -- inefficiency- with use of enforceClosed
+                        -- everywhere, it'll normally just be a single TVar
+                        -- read.  And any attempt to avoid it just greatly
+                        -- complicates the code.
+                        r2
+
+                    Just (Just a) -> do
+                        -- r1 succeeded.  We succeed, but update the flag
+                        -- so we favor r2 the next time.
+                        writeTVar f (not t)
+                        pure $ Just a
+
     -- | Selective gives us a whole slew of useful functions.
     --
     -- See <https://hackage.haskell.org/package/selective-0.5/docs/Control-Selective.html>
@@ -228,7 +307,6 @@ module Data.Conduit.Parallel.Internal.Duct where
         divide f = writeThose (\a -> let (b, c) = f a in These b c)
         conquer = WriteDuct (pure (const (pure (Just ()))))
         
-
     instance MonadIO m => Decidable (WriteDuct m) where
         lose _ = WriteDuct (pure (const (pure Nothing)))
         choose f = writeThose go
@@ -236,3 +314,4 @@ module Data.Conduit.Parallel.Internal.Duct where
                 go a = case (f a) of
                             Left b  -> This b
                             Right c -> That c
+
