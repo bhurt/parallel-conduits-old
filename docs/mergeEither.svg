@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
-<svg width="9cm" height="7cm" viewBox="440 155 168 125" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg width="9cm" height="4cm" viewBox="440 155 168 75" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
   <defs/>
   <g id="Background">
     <rect style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 0.705556; stroke: #000000" x="462.5" y="173.73" width="91.375" height="56.0938" rx="0" ry="0"/>
     <text font-size="6.77323" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="505.5" y="161.761">
       <tspan x="505.5" y="161.761">r</tspan>
     </text>
-    <g>
-      <polyline style="fill: none; stroke-opacity: 1; stroke-width: 0.8; stroke: #000000" points="451.875,258.761 472.25,258.761 472.25,279.636 543,279.636 543,259.386 574.481,259.386 "/>
-      <polygon style="fill: #000000; fill-opacity: 1; stroke-opacity: 1; stroke-width: 0.8; stroke: #000000" fill-rule="evenodd" points="577.481,259.386 573.481,261.386 574.481,259.386 573.481,257.386 "/>
-    </g>
     <g>
       <polyline style="fill: none; stroke-opacity: 1; stroke-width: 0.8; stroke: #000000" points="516.718,213.301 547.314,213.301 547.314,201.98 569.92,201.98 "/>
       <polygon style="fill: #000000; fill-opacity: 1; stroke-opacity: 1; stroke-width: 0.8; stroke: #000000" fill-rule="evenodd" points="572.92,201.98 568.92,203.98 569.92,201.98 568.92,199.98 "/>
