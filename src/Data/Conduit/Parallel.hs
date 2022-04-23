@@ -45,12 +45,23 @@ module Data.Conduit.Parallel(
     , fuseLeft
     , fuseS
 
+    -- ** ParConduit routing
+    , split
+    , splitTuple
+    , splitThese
+    , merge
+    , mergeEither
+    , route
+    , routeThese
+    , routeTuple
+
     -- * Parallel Arrows
 
 ) where
 
     import           Data.Conduit.Parallel.Internal.Conduit.Create
     import           Data.Conduit.Parallel.Internal.Conduit.Fuse
+    import           Data.Conduit.Parallel.Internal.Conduit.Route
     import           Data.Conduit.Parallel.Internal.Conduit.Run
     import           Data.Conduit.Parallel.Internal.Conduit.Type
 
