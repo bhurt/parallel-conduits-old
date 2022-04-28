@@ -83,6 +83,8 @@ module Data.Conduit.Parallel(
 
     -- ** Multiple ParConduits
     , parallel
+    , heads
+    , tails
 
     -- * Parallel Arrows
 

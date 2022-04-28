@@ -28,11 +28,13 @@ module Data.Conduit.Parallel.Internal.Conduit.Parallel where
     import           Data.Semigroup
     import           Data.Sequence           (Seq, ViewL (..), (|>))
     import qualified Data.Sequence           as Seq
+    import           Data.Void               (Void)
 
     import           Data.Conduit.Parallel.Internal.Conduit.Type
     import           Data.Conduit.Parallel.Internal.Copy
     import           Data.Conduit.Parallel.Internal.Duct
     import           Data.Conduit.Parallel.Internal.Duct.Create
+    import           Data.Conduit.Parallel.Internal.Duct.No
     import           Data.Conduit.Parallel.Internal.Spawn
 
     parallel :: forall m i o r .
@@ -66,6 +68,65 @@ module Data.Conduit.Parallel.Internal.Conduit.Parallel where
                     mu2 :: m () <- spawn $ copyThread mrdo wdo
 
                     pure $ mu1 >> mu2 >> qux
+
+    -- A more efficient version of `parallel` for sources.
+    heads :: forall m o r .
+                    (MonadUnliftIO m
+                    , Semigroup r)
+                    => Int
+                    -> ParConduit m r () o
+                    -> ParConduit m r () o
+    heads n pc
+        | n <= 0    = error "Data.Conduit.Parallel.heads n <= 0 not allowed."
+        | n == 1    = pc
+        | otherwise = ParConduit go
+            where
+                go :: ReadDuct m ()
+                        -> WriteDuct m o
+                        -> ControlThread m (m r)
+                go _ wdo = do
+                    (mwdos, mrdo) <- createMultiWrite n
+
+                    let foo :: NonEmpty (ControlThread m (m r))
+                        foo = getParConduit pc noRead <$> mwdos
+                    bar :: NonEmpty (m r) <- sequence foo
+                    let baz :: m (NonEmpty r)
+                        baz = sequence bar
+                        qux :: m r
+                        qux = sconcat <$> baz
+
+                    mu :: m () <- spawn $ copyThread mrdo wdo
+
+                    pure $ mu >> qux
+
+    tails :: forall m i r .
+                    (MonadUnliftIO m
+                    , Semigroup r)
+                    => Int
+                    -> ParConduit m r i Void
+                    -> ParConduit m r i Void
+    tails n pc
+        | n <= 0    = error "Data.Conduit.Parallel.tails n <= 0 not allowed."
+        | n == 1    = pc
+        | otherwise = ParConduit go
+            where
+                go :: ReadDuct m i
+                        -> WriteDuct m Void
+                        -> ControlThread m (m r)
+                go rdi _ = do
+                    (mwdi, mrdis) <- createMultiRead n
+
+                    let foo :: NonEmpty (ControlThread m (m r))
+                        foo = (\rd -> getParConduit pc rd noWrite) <$> mrdis
+                    bar :: NonEmpty (m r) <- sequence foo
+                    let baz :: m (NonEmpty r)
+                        baz = sequence bar
+                        qux :: m r
+                        qux = sconcat <$> baz
+
+                    mu :: m () <- spawn $ copyThread rdi mwdi
+
+                    pure $ mu >> qux
 
     createMultiRead :: forall a m .
                         MonadUnliftIO m
