@@ -5,7 +5,7 @@
 -- License     : BSD 3-clause
 -- Maintainer  : bhurt42@gmail.com
 -- Stability   : experimental
--- 
+--
 -- This library implements a parallel version of
 -- the [Data.Conduit](https://hackage.haskell.org/package/conduit-1.3.4/docs/Data-Conduit.html)
 -- library.  Each stage of conduit is executed in it's own thread,
@@ -14,7 +14,7 @@
 -- addition, the parallel conduit can tee, and perform multiple paths in
 -- parallel.  This allows us to capture a large number of patterns of
 -- parallel computation in a single library.
--- 
+--
 -- We provide a way to lift normal Conduits into parallel conduits.  This
 -- allows us to access the rich ecosystem of the Conduit library.  The
 -- Async library is used to spawn the threads, so exceptions are handled
@@ -22,7 +22,32 @@
 -- propogated to the main thread, and all the other sub-threads are
 -- cancelled).  We use UnliftIO so that many different monads can be
 -- supported.
--- 
+--
+-- = Philosophy
+--
+-- == Designed for Concurrency
+--
+-- This library is designed for concurrency, not parallelism.
+--
+-- Just to be clear here:
+--
+--  [@ Concurrency @] is doing a lot of different things all the same time
+--  (handling web requests, doing database queries, etc).
+--
+--  [@ Parallelism @] is using lots of CPUs to do one thing fast
+--  (invert a matrix, etc.).
+--
+--  [@ Multithreading @] is the union of parallelism and concurrency,
+--  that is programs with multiple threads of control.
+--
+-- == Exceptions are Exceptional
+--
+-- TODO: write this
+--
+-- = Threads are (Relatively) Cheap
+--
+-- TODO: write this
+--
 module Data.Conduit.Parallel(
 
     -- * Parallel Conduits
