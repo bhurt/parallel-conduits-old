@@ -79,6 +79,7 @@ module Data.Conduit.Parallel(
     , route
     , routeThese
     , routeTuple
+    , duplicate
 
     -- ** Multiple ParConduits
     , parallel
