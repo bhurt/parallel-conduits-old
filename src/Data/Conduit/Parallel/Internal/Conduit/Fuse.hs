@@ -99,7 +99,7 @@ module Data.Conduit.Parallel.Internal.Conduit.Fuse where
     -- (@mappend@, but for Semigroups) of the results of the two
     -- sub ParConduits.
     --
-    -- The 'S' here standing for Semigroup.
+    -- The S in the name stands for Semigroup.
     --
     -- Pictorially, we might represent the results of @fuseM c1 c2@ like:
     --
