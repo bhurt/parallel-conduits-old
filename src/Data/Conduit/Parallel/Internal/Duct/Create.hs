@@ -22,11 +22,7 @@
 -- This module contains the code to create simple ducts.  Every duct
 -- has a queue of some size in it.
 --
-module Data.Conduit.Parallel.Internal.Duct.Create(
-    createSimpleDuct,
-    createBoundedQueueDuct,
-    createUnboundedQueueDuct
-) where
+module Data.Conduit.Parallel.Internal.Duct.Create where
 
     import qualified Control.Concurrent.STM.TBQueue as TBQueue
     import qualified Control.Concurrent.STM.TQueue  as TQueue
@@ -38,14 +34,14 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     import           Data.Conduit.Parallel.Internal.Duct
 
     -- | Factored out common code from all the create duct functions.
-    createDuct :: forall a m .
+    createDuctInner :: forall a m .
                     MonadUnliftIO m
                     => STM (Maybe a)            -- ^ doRead
                     -> STM ()                   -- ^ readClose
                     -> (a -> STM (Maybe ()))    -- ^ doWrite
                     -> STM ()                   -- ^ writeClose
                     -> Duct m a
-    createDuct doRead readClose doWrite writeClose = Duct {
+    createDuctInner doRead readClose doWrite writeClose = Duct {
                     getReadEndpoint = readEndpoint,
                     getWriteEndpoint = writeEndpoint }
         where
@@ -94,7 +90,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
                         => ControlThread m (Duct m a)
     createSimpleDuct = do
             tvar <- newTVarIO Empty
-            return $ createDuct (doRead tvar) (readClose tvar)
+            return $ createDuctInner (doRead tvar) (readClose tvar)
                             (doWrite tvar) (writeClose tvar)
         where
             doRead :: TVar (DuctState a) -> STM (Maybe a)
@@ -150,7 +146,7 @@ module Data.Conduit.Parallel.Internal.Duct.Create(
     createQueueDuct makeQ readQ writeQ flushQ = liftIO $ do
             isOpen <- newTVarIO True
             q <- liftIO makeQ
-            return $ createDuct (doRead isOpen q) (readClose isOpen q)
+            return $ createDuctInner (doRead isOpen q) (readClose isOpen q)
                             (doWrite isOpen q) (writeClose isOpen)
         where
             doRead :: TVar Bool -> q a -> STM (Maybe a)
