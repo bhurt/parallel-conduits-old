@@ -44,9 +44,18 @@
 --
 -- TODO: write this
 --
--- = Threads are (Relatively) Cheap
+-- == Threads are (Relatively) Cheap
 --
 -- TODO: write this
+--
+-- == Fairness as a Default
+--
+-- When merging streams of values, we prefer the least recently used stream.
+-- TODO: finish writing this.
+--
+-- == Strictness as a Default
+--
+-- Values get forced as they are produced.
 --
 module Data.Conduit.Parallel(
 
