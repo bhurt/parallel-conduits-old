@@ -95,6 +95,9 @@ module Data.Conduit.Parallel(
     , heads
     , tails
 
+    -- ** ParConduit Portals
+    , portal
+
     -- * Parallel Arrows
 
     -- * Lazy
@@ -105,6 +108,7 @@ module Data.Conduit.Parallel(
     import           Data.Conduit.Parallel.Internal.Conduit.Create
     import           Data.Conduit.Parallel.Internal.Conduit.Fuse
     import           Data.Conduit.Parallel.Internal.Conduit.Parallel
+    import           Data.Conduit.Parallel.Internal.Conduit.Portal
     import           Data.Conduit.Parallel.Internal.Conduit.Route
     import           Data.Conduit.Parallel.Internal.Conduit.Run
     import           Data.Conduit.Parallel.Internal.Conduit.Type

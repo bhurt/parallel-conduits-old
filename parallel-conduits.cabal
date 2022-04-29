@@ -23,6 +23,7 @@ library
                         , Data.Conduit.Parallel.Internal.Conduit.Create
                         , Data.Conduit.Parallel.Internal.Conduit.Fuse
                         , Data.Conduit.Parallel.Internal.Conduit.Parallel
+                        , Data.Conduit.Parallel.Internal.Conduit.Portal
                         , Data.Conduit.Parallel.Internal.Conduit.Route
                         , Data.Conduit.Parallel.Internal.Conduit.Run
                         , Data.Conduit.Parallel.Internal.Conduit.Type
