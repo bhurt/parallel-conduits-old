@@ -97,6 +97,9 @@ module Data.Conduit.Parallel(
 
     -- * Parallel Arrows
 
+    -- * Lazy
+    , Lazy(..)
+
 ) where
 
     import           Data.Conduit.Parallel.Internal.Conduit.Create
@@ -105,6 +108,7 @@ module Data.Conduit.Parallel(
     import           Data.Conduit.Parallel.Internal.Conduit.Route
     import           Data.Conduit.Parallel.Internal.Conduit.Run
     import           Data.Conduit.Parallel.Internal.Conduit.Type
+    import           Data.Conduit.Parallel.Internal.Lazy
 
     -- A comment on the image tags: I don't know how to include the image
     -- files as part of the documentation.  So instead, I (ab)use github
