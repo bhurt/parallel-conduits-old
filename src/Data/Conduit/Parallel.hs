@@ -23,7 +23,7 @@
 -- cancelled).  We use UnliftIO so that many different monads can be
 -- supported.
 --
--- = Philosophy
+-- = Philosophy And Design Descisions
 --
 -- == Designed for Concurrency
 --
@@ -39,6 +39,10 @@
 --
 --  [@ Multithreading @] is the union of parallelism and concurrency,
 --  that is programs with multiple threads of control.
+--
+-- == Backpressure is important.
+--
+-- TODO: write this.
 --
 -- == Exceptions are Exceptional
 --
