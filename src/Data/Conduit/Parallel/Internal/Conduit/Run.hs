@@ -3,7 +3,7 @@
 
 -- |
 -- Module      : Data.Conduit.Parallel.Internal.Conduit.Run
--- Description : Parallel Conduit Type
+-- Description : Running Parallel Conduits
 -- Copyright   : (c) Brian Hurt, 2022
 -- License     : BSD 3-clause
 -- Maintainer  : bhurt42@gmail.com

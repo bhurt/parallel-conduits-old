@@ -2,7 +2,7 @@
 
 -- |
 -- Module      : Data.Conduit.Parallel.Internal.Lazy
--- Description : Parallel Conduit Ducts
+-- Description : Escape hatch for NFData requirements
 -- Copyright   : (c) Brian Hurt, 2022
 -- License     : BSD 3-clause
 -- Maintainer  : bhurt42@gmail.com

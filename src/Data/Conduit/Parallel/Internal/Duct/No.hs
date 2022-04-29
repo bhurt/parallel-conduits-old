@@ -1,6 +1,6 @@
 -- |
 -- Module      : Data.Conduit.Parallel.Internal.Duct.No
--- Description : Parallel Conduit Ducts
+-- Description : Pre-closed Parallel Conduit Ducts
 -- Copyright   : (c) Brian Hurt, 2022
 -- License     : BSD 3-clause
 -- Maintainer  : bhurt42@gmail.com
