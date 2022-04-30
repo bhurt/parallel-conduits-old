@@ -99,6 +99,9 @@ module Data.Conduit.Parallel(
     , heads
     , tails
 
+    -- ** Cache ParConduits
+    , cache
+
     -- ** ParConduit Portals
     , portal
 
@@ -109,6 +112,7 @@ module Data.Conduit.Parallel(
 
 ) where
 
+    import           Data.Conduit.Parallel.Internal.Conduit.Cache
     import           Data.Conduit.Parallel.Internal.Conduit.Create
     import           Data.Conduit.Parallel.Internal.Conduit.Fuse
     import           Data.Conduit.Parallel.Internal.Conduit.Parallel
