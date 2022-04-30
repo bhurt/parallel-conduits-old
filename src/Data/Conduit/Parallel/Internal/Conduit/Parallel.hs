@@ -37,6 +37,13 @@ module Data.Conduit.Parallel.Internal.Conduit.Parallel where
     import           Data.Conduit.Parallel.Internal.Duct.No
     import           Data.Conduit.Parallel.Internal.Spawn
 
+    -- | Run multiple parallel conduits.
+    --
+    --
+    -- Pictorially, @parallel inner@ looks like:
+    --
+    -- <<https://raw.githubusercontent.com/bhurt/parallel-conduits/master/docs/parallel.svg example>>
+    -- 
     parallel :: forall m i o r .
                     (MonadUnliftIO m
                     , Semigroup r)
@@ -69,7 +76,13 @@ module Data.Conduit.Parallel.Internal.Conduit.Parallel where
 
                     pure $ mu1 >> mu2 >> qux
 
-    -- A more efficient version of `parallel` for sources.
+    -- | A more efficient version of `parallel` for sources.
+    --
+    --
+    -- Pictorially, @heads inner@ looks like:
+    --
+    -- <<https://raw.githubusercontent.com/bhurt/parallel-conduits/master/docs/heads.svg example>>
+    -- 
     heads :: forall m o r .
                     (MonadUnliftIO m
                     , Semigroup r)
@@ -99,6 +112,13 @@ module Data.Conduit.Parallel.Internal.Conduit.Parallel where
 
                     pure $ mu >> qux
 
+    -- | A more efficient version of `parallel` for sinks.
+    --
+    --
+    -- Pictorially, @tails inner@ looks like:
+    --
+    -- <<https://raw.githubusercontent.com/bhurt/parallel-conduits/master/docs/tails.svg example>>
+    -- 
     tails :: forall m i r .
                     (MonadUnliftIO m
                     , Semigroup r)
