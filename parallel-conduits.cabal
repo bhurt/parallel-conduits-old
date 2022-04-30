@@ -33,7 +33,6 @@ library
                         , Data.Conduit.Parallel.Internal.Duct.Create
                         , Data.Conduit.Parallel.Internal.Duct.No
                         , Data.Conduit.Parallel.Internal.Duct.Utils
-                        , Data.Conduit.Parallel.Internal.Duct.Write
                         , Data.Conduit.Parallel.Internal.Lazy
                         , Data.Conduit.Parallel.Internal.Spawn
                         , Data.Conduit.Parallel.Internal.Utils
