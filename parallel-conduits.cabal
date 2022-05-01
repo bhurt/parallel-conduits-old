@@ -20,6 +20,7 @@ Flag Devel
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Conduit.Parallel
+                        , Data.Conduit.Parallel.Internal.Arrow.Type
                         , Data.Conduit.Parallel.Internal.Conduit.Cache
                         , Data.Conduit.Parallel.Internal.Conduit.Create
                         , Data.Conduit.Parallel.Internal.Conduit.Fuse
@@ -67,6 +68,17 @@ library
   else
     ghc-options:       -O2
 
+
+test-suite parallel-haskell-testsuite
+    type:               exitcode-stdio-1.0
+    main-is:            Main.hs
+    other-modules:      Fuse
+    hs-source-dirs:     test
+    build-depends:      base >= 4.7 && < 5
+                        , conduit
+                        , HUnit
+                        , parallel-conduits
+    ghc-options:        -static -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T -O0
 
 source-repository head
   type:     git
