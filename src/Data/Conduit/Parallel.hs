@@ -107,11 +107,15 @@ module Data.Conduit.Parallel(
 
     -- * Parallel Arrows
 
+    -- ** ParArrow Type
+    , ParArrow
+
     -- * Lazy
     , Lazy(..)
 
 ) where
 
+    import           Data.Conduit.Parallel.Internal.Arrow.Type
     import           Data.Conduit.Parallel.Internal.Conduit.Cache
     import           Data.Conduit.Parallel.Internal.Conduit.Create
     import           Data.Conduit.Parallel.Internal.Conduit.Fuse
