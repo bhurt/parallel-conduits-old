@@ -105,51 +105,41 @@ module Data.Conduit.Parallel.Internal.Utils where
                     pure $ fixR r1 r2
         pure $ r
 
-    bypass :: forall m i o a b c r .
+
+    bypass :: forall m i o i1 o1 r .
                 MonadUnliftIO m
-                => (i -> These a b)
-                -> (These a c -> o)
-                -> (ReadDuct m b
-                    -> WriteDuct m c
+                => (i -> Either o (i1, o1 -> o))
+                -> (ReadDuct m i1
+                    -> WriteDuct m o1
                     -> ControlThread m (m r))
                 -> ReadDuct m i
                 -> WriteDuct m o
                 -> ControlThread m (m r)
-    bypass pre post inner rdi wdo = do
-            bduct :: Duct m b <- createSimpleDuct
-            cduct :: Duct m c <- createSimpleDuct
-            tduct :: Duct m (These a ()) <- createUnboundedQueueDuct
-            mr :: m r <- inner (getReadEndpoint bduct)
-                                    (getWriteEndpoint cduct)
+    bypass foo inner rdi wdo = do
+            i1duct :: Duct m i1 <- createSimpleDuct
+            o1duct :: Duct m o1 <- createSimpleDuct
+            tduct :: Duct m (Either (o1 -> o) o) <- createUnboundedQueueDuct
+            mr :: m r <- inner (getReadEndpoint i1duct)
+                                    (getWriteEndpoint o1duct)
             let wdi :: WriteDuct m i
-                wdi = writeThose fixedPre (getWriteEndpoint tduct)
-                                            (getWriteEndpoint bduct)
-                needElem :: ReadDuct m (Either (Maybe a) (These a c))
-                needElem = readCache <$> getReadEndpoint tduct
-
-                getElem :: ReadDuct m (Maybe a -> These a c)
-                getElem = readElem <$> getReadEndpoint (cduct)
+                wdi = writeThose bar (getWriteEndpoint tduct)
+                                            (getWriteEndpoint i1duct)
 
                 rdo :: ReadDuct m o
-                rdo = post <$> select needElem getElem
+                rdo = select (getReadEndpoint tduct)
+                            (baz <$> getReadEndpoint o1duct)
 
             mu1 :: m () <- spawn $ copyThread rdi wdi
             mu2 :: m () <- spawn $ copyThread rdo wdo
             pure $ mu1 >> mu2 >> mr
 
         where
-            fixedPre :: i -> These (These a ()) b
-            fixedPre i = case pre i of
-                            This a -> This (This a)
-                            That b -> These (That ()) b
-                            These a b -> These (These a ()) b
+            bar :: i -> These (Either (o1 -> o) o) i1
+            bar i = case foo i of
+                        Left o          -> This $ Right o
+                        Right (i1, o1o) -> These (Left o1o) i1
 
-            readCache :: These a () -> Either (Maybe a) (These a c)
-            readCache (This a) = Right $ This a
-            readCache (That ()) = Left Nothing
-            readCache (These a ()) = Left $ Just a
+            baz :: o1 -> (o1 -> o) -> o
+            baz = flip ($)
 
 
-            readElem :: c -> Maybe a -> These a c 
-            readElem c Nothing  = That c
-            readElem c (Just a) = These a c
