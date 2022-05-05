@@ -33,6 +33,7 @@ module Data.Conduit.Parallel.Internal.Arrow.Type where
     import           Data.Profunctor
     import           Data.These
 
+    import           Data.Conduit.Parallel.Internal.Arrow.Utils
     import           Data.Conduit.Parallel.Internal.Conduit.Type
     import           Data.Conduit.Parallel.Internal.Copy
     import           Data.Conduit.Parallel.Internal.Duct
@@ -192,6 +193,26 @@ module Data.Conduit.Parallel.Internal.Arrow.Type where
                 f (Left d) = Left (Left d)
                 f (Right b) = Right (b, Right)
 
-        -- The default implementations of +++ and &&& are reasonably
-        -- efficient.  And implementing them is complicated.  So we
-        -- use the defaults.
+        (+++) :: forall b c b' c' .
+                    ParArrow m b c
+                    -> ParArrow m b' c'
+                    -> ParArrow m (Either b b') (Either c c')
+        (+++) p1 p2 = ParArrow $ dispatch dir (getParArrow p1)
+                                                (getParArrow p2)
+            where
+                dir :: Either b b' ->
+                        Either (b, c -> Either c c') (b', c' -> Either c c')
+                dir (Left b) = Left (b, Left)
+                dir (Right b') = Right (b', Right)
+
+        (|||) :: forall b c d .
+                    ParArrow m b d
+                    -> ParArrow m c d
+                    -> ParArrow m (Either b c) d
+        (|||) p1 p2 = ParArrow $ dispatch dir (getParArrow p1)
+                                                (getParArrow p2)
+            where
+                dir :: Either b c -> Either (b, d -> d) (c, d -> d)
+                dir (Left b) = Left (b, id)
+                dir (Right c) = Right (c, id)
+

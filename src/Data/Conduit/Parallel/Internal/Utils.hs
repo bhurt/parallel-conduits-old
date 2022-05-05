@@ -25,8 +25,6 @@
 module Data.Conduit.Parallel.Internal.Utils where
 
     import           Control.Monad.IO.Unlift
-    import           Control.Selective
-    import           Data.These
 
     import           Data.Conduit.Parallel.Internal.Copy
     import           Data.Conduit.Parallel.Internal.Duct
@@ -105,41 +103,5 @@ module Data.Conduit.Parallel.Internal.Utils where
                     pure $ fixR r1 r2
         pure $ r
 
-
-    bypass :: forall m i o i1 o1 r .
-                MonadUnliftIO m
-                => (i -> Either o (i1, o1 -> o))
-                -> (ReadDuct m i1
-                    -> WriteDuct m o1
-                    -> ControlThread m (m r))
-                -> ReadDuct m i
-                -> WriteDuct m o
-                -> ControlThread m (m r)
-    bypass foo inner rdi wdo = do
-            i1duct :: Duct m i1 <- createSimpleDuct
-            o1duct :: Duct m o1 <- createSimpleDuct
-            tduct :: Duct m (Either (o1 -> o) o) <- createUnboundedQueueDuct
-            mr :: m r <- inner (getReadEndpoint i1duct)
-                                    (getWriteEndpoint o1duct)
-            let wdi :: WriteDuct m i
-                wdi = writeThose bar (getWriteEndpoint tduct)
-                                            (getWriteEndpoint i1duct)
-
-                rdo :: ReadDuct m o
-                rdo = select (getReadEndpoint tduct)
-                            (baz <$> getReadEndpoint o1duct)
-
-            mu1 :: m () <- spawn $ copyThread rdi wdi
-            mu2 :: m () <- spawn $ copyThread rdo wdo
-            pure $ mu1 >> mu2 >> mr
-
-        where
-            bar :: i -> These (Either (o1 -> o) o) i1
-            bar i = case foo i of
-                        Left o          -> This $ Right o
-                        Right (i1, o1o) -> These (Left o1o) i1
-
-            baz :: o1 -> (o1 -> o) -> o
-            baz = flip ($)
 
 
