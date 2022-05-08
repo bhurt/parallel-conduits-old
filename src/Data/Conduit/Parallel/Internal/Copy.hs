@@ -22,14 +22,16 @@
 -- With most of the actual routing logic moved into the Duct STM actions,
 -- a few common functions take care of most of the simple threads.
 --
-module Data.Conduit.Parallel.Internal.Copy(
+module Data.Conduit.Parallel.Internal.Copy (
     copyThread,
+    modifyThread,
     discardThread,
     spamThread
 ) where
 
     import           Control.Monad.IO.Class
     import           Control.Monad.STM
+    import           Control.Monad.Trans       (lift)
     import           Control.Monad.Trans.Maybe
     import           Data.Void
 
@@ -84,6 +86,47 @@ module Data.Conduit.Parallel.Internal.Copy(
                 loop
         runLoop loop
 
+    -- | Like `copyThread`, but allows us to modify the value as we copy it.
+    --
+    -- This is less efficient, and also less common, than `copyThread`.
+    -- Which is why, even though we could just define:
+    -- @copyThread = modifyThread pure@
+    -- we provide a special implementation of `copyThread`.
+    modifyThread :: forall m a b .
+                    MonadIO m
+                    => (a -> m b)
+                    -> ReadDuct m a
+                    -> WriteDuct m b
+                    -> WorkerThread m ()
+    modifyThread f wrd wwd = do
+            rd <- getReadDuct wrd
+            wd <- getWriteDuct wwd
+            let loop :: MaybeT m Void
+                loop = do
+                            a :: a <- doAct' rd
+                            b :: b <- lift $ f a
+                            doAct' $ wd b
+                            loop
+            runLoop' loop
+        where
+            runLoop' :: MaybeT m Void -> WorkerThread m ()
+            runLoop' loop = do
+                r :: Maybe Void <- lift $ runMaybeT loop
+                case r of
+                    Just v  -> absurd v
+                    Nothing -> pure ()
+
+            doAct' :: forall x . STM (Maybe x) -> MaybeT m x
+            doAct' act = do
+                -- Blocked indefinitely on STM is the same as
+                -- closing the duct.
+                mx :: Maybe x <- MaybeT . liftIO . safeAtomically $ act
+
+                -- If the duct is closed, exit.  Otherwise, return
+                -- the value.
+                MaybeT $ pure mx
+
+        
     -- | Read and discard all elements from a Read duct.
     --
     -- Used when we have a duct that we don't know is already closed,
