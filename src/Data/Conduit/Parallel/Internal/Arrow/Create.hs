@@ -33,15 +33,7 @@ module Data.Conduit.Parallel.Internal.Arrow.Create where
                         , NFData b)
                         => (a -> b)
                         -> ParArrow m a b
-    fromFunction f = ParArrow go
-        where
-            go :: ReadDuct m a
-                    -> WriteDuct m b
-                    -> ControlThread m (m ())
-            go rd wd = spawn $ modifyThread g rd wd
-
-            g :: a -> m b
-            g a = evaluate $ force (f a)
+    fromFunction f = fromKleisli (pure . f)
 
     fromKleisli :: forall m a b .
                     (MonadUnliftIO m
