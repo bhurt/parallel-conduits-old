@@ -101,7 +101,7 @@ module Data.Conduit.Parallel.Internal.Conduit.Fuse where
     --
     -- The S in the name stands for Semigroup.
     --
-    -- Pictorially, we might represent the results of @fuseM c1 c2@ like:
+    -- Pictorially, we might represent the results of @fuseS c1 c2@ like:
     --
     -- <<https://raw.githubusercontent.com/bhurt/parallel-conduits/master/docs/fuseS.svg example>>
     --
@@ -126,6 +126,40 @@ module Data.Conduit.Parallel.Internal.Conduit.Fuse where
         ParConduit $
             fuseInternal
                 (<>)
+                (getParConduit pc1)
+                (getParConduit pc2)
+
+    -- | Fuse two parallel conduits, with results combined with a given
+    --   function.
+    --
+    -- The same as `fuse`, except that the results of the two sub
+    -- ParConduits are passed to a given function for combining.
+    --
+    -- Pictorially, we might represent the results of @fuseWith c1 c2@ like:
+    --
+    -- <<https://raw.githubusercontent.com/bhurt/parallel-conduits/master/docs/fuseWith.svg example>>
+    --
+    -- We are making one combined ParConduit from two sub ParConduits.  The 
+    -- combined ParConduit takes input values of type @i@ and feeds them
+    -- directly to the first sub ParConduit.  That first sub ParConduit
+    -- produces intermediate values of type @x@, which gets feed as the
+    -- input to the second sub ParConduit.  The second sub ParConduit
+    -- then produces outputs of type @o@, which become the outputs of
+    -- the combined ParConduit.
+    --
+    -- The result of the combined ParConduit is the results of the two
+    -- sub ParConduits passed to the given function.
+    --
+    fuseWith :: forall r r1 r2 m i o x .
+                (MonadUnliftIO m)
+                => (r1 -> r2 -> r)
+                -> ParConduit m r1 i x
+                -> ParConduit m r2 x o
+                -> ParConduit m r i o
+    fuseWith f pc1 pc2 =
+        ParConduit $
+            fuseInternal
+                f
                 (getParConduit pc1)
                 (getParConduit pc2)
 

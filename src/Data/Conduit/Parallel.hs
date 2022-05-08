@@ -82,6 +82,7 @@ module Data.Conduit.Parallel(
     , fuse
     , fuseLeft
     , fuseS
+    , fuseWith
 
     -- ** ParConduit routing
     , split
