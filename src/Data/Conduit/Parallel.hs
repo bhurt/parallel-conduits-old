@@ -118,12 +118,16 @@ module Data.Conduit.Parallel(
     -- ** Converting ParArrows to ParConduits
     , makeParConduit
 
+    -- ** Multiple ParArrows
+    , multiple
+
     -- * Lazy
     , Lazy(..)
 
 ) where
 
     import           Data.Conduit.Parallel.Internal.Arrow.Create
+    import           Data.Conduit.Parallel.Internal.Arrow.Multiple
     import           Data.Conduit.Parallel.Internal.Arrow.Type
     import           Data.Conduit.Parallel.Internal.Conduit.Cache
     import           Data.Conduit.Parallel.Internal.Conduit.Create

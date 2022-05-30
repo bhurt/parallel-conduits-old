@@ -21,6 +21,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Data.Conduit.Parallel
                         , Data.Conduit.Parallel.Internal.Arrow.Create
+                        , Data.Conduit.Parallel.Internal.Arrow.Multiple
                         , Data.Conduit.Parallel.Internal.Arrow.Type
                         , Data.Conduit.Parallel.Internal.Arrow.Utils
                         , Data.Conduit.Parallel.Internal.Conduit.Cache
