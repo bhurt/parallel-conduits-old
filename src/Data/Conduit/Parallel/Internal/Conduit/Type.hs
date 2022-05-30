@@ -28,6 +28,7 @@ module Data.Conduit.Parallel.Internal.Conduit.Type where
     import           Control.Monad.IO.Unlift
     import           Data.Functor.Contravariant
     import           Data.Profunctor
+    import           Witherable
 
     import           Data.Conduit.Parallel.Internal.Copy
     import           Data.Conduit.Parallel.Internal.Duct
@@ -108,6 +109,10 @@ module Data.Conduit.Parallel.Internal.Conduit.Type where
 
         rmap g pc = ParConduit $
                         \rd wd -> getParConduit pc rd (contramap g wd)
+
+    instance (Functor m, MonadIO m) => Filterable (ParConduit m r i) where
+        catMaybes pc = ParConduit $
+                        \rd wd -> getParConduit pc rd (writeFilter wd)
 
     instance (MonadUnliftIO m, Monoid r)
         => Cat.Category (ParConduit m r) where
