@@ -78,6 +78,7 @@ test-suite parallel-haskell-testsuite
     main-is:            Main.hs
     other-modules:      Fuse
                         , Functor
+                        , Route
                         , Util
     hs-source-dirs:     test
     build-depends:      base >= 4.7 && < 5
@@ -86,6 +87,7 @@ test-suite parallel-haskell-testsuite
                         , HUnit
                         , parallel-conduits
                         , profunctors
+                        , these
                         , witherable
     default-language:   Haskell2010
     if flag(devel)
