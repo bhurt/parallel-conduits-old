@@ -7,6 +7,7 @@ module Route(
 
     import qualified Control.Category      as Cat
     import           Data.Conduit.Parallel
+    import           Data.Either
     import           Data.Profunctor
     import           Data.These
     import           GHC.Stack
@@ -22,7 +23,10 @@ module Route(
                             splitTheseTest,
                             mergeTest,
                             mergeEitherTest,
-                            routeTheseTest
+                            routeTheseTest,
+                            routeTupleTest,
+                            routeTest,
+                            duplicateTest
                         ]
 
     ints :: [ Int ]
@@ -149,4 +153,51 @@ module Route(
             getThat (This _)    = []
             getThat (That s)    = [ s ]
             getThat (These _ s) = [ s ]
+
+    routeTupleTest :: HasCallStack => Test
+    routeTupleTest = testConduit "routeTupleTest" $
+                        listSource src ()
+                        `fuse`
+                        routeTuple (expectSink True fstRes)
+                        `fuse`
+                        expectSink True sndRes
+        where
+            src :: [ (Int, String) ]
+            src = (\i -> (i, show i)) <$> ints
+
+            sndRes :: [ String ]
+            sndRes = snd <$> src
+
+            fstRes :: [ Int ]
+            fstRes = fst <$> src
+
+    routeTest :: HasCallStack => Test
+    routeTest = testConduit "routeTest" $
+                    listSource src ()
+                    `fuse`
+                    route (expectSink True leftRes)
+                    `fuse`
+                    expectSink True rightRes
+        where
+            src :: [ Either String Int ]
+            src = go <$> ints
+
+            go :: Int -> Either String Int
+            go i = if (i `mod` 2 == 0)
+                    then Left (show i)
+                    else Right i
+
+            leftRes :: [ String ]
+            leftRes = lefts src
+
+            rightRes :: [ Int ]
+            rightRes = rights src
+
+    duplicateTest :: HasCallStack => Test
+    duplicateTest = testConduit "duplicateTest" $
+                        listSource ints ()
+                        `fuse`
+                        duplicate (expectSink True ints)
+                        `fuse`
+                        expectSink True ints
 
