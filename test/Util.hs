@@ -7,14 +7,19 @@ module Util (
     listSink,
     discardSink,
     expectSink,
-    testConduit
+    testConduit,
+    randomDelay,
+    printValues
 ) where
 
+    import           Control.Concurrent     (threadDelay)
     import           Control.DeepSeq
+    import           Control.Monad.IO.Class
     import           Data.Conduit
-    import qualified Data.Conduit.List     as C
+    import qualified Data.Conduit.List      as C
     import           Data.Conduit.Parallel
     import           GHC.Stack
+    import           System.Random          (randomRIO)
     import           Test.HUnit
 
     -- | Given a list of elements, just output them.
@@ -82,7 +87,7 @@ module Util (
             removeFirst x [] = error $ "Unexpected value " ++ show x
 
 
-    -- Test the execution of a single ParConduit.
+    -- | Test the execution of a single ParConduit.
     --
     -- Just eliminating common duplicate code.
     --
@@ -94,3 +99,39 @@ module Util (
         TestLabel label $
             TestCase $
                 assert $ runParConduit cond
+
+    -- | Add a random delay to an id ParConduit
+    randomDelay :: forall a . NFData a
+                    => ParConduit IO () a a
+    randomDelay = liftConduit rdelay
+        where
+            rdelay :: ConduitT a a IO ()
+            rdelay = do
+                ma :: Maybe a <- await
+                case ma of
+                    Nothing -> do
+                        pure ()
+                    Just a -> do
+                        liftIO $ randomRIO (1, 3001) >>= threadDelay
+                        yield a
+                        rdelay
+
+    -- | Print values as they go by.
+    printValues :: forall a . (NFData a, Show a)
+                    => String
+                    -> ParConduit IO () a a
+    printValues name = liftConduit printer
+        where
+            printer :: ConduitT a a IO ()
+            printer = do
+                ma :: Maybe a <- await
+                case ma of
+                    Nothing -> do
+                        liftIO . putStrLn $ name ++ " finished."
+                        pure ()
+                    Just a -> do
+                        liftIO . putStrLn $ name ++ " saw value: " ++ show a
+                        yield a
+                        printer
+
+    

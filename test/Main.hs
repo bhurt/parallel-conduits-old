@@ -1,8 +1,9 @@
 
 module Main where
 
-    import qualified Fuse
     import qualified Functor
+    import qualified Fuse
+    import qualified Parallel
     import qualified Route
     import           Test.HUnit
 
@@ -11,7 +12,8 @@ module Main where
                     TestList [
                         Fuse.fuseTests,
                         Functor.functorTests,
-                        Route.routeTests
+                        Route.routeTests,
+                        Parallel.parallelTests
                     ]
 
     main :: IO ()

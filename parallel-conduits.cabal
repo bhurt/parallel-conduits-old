@@ -78,6 +78,7 @@ test-suite parallel-haskell-testsuite
     main-is:            Main.hs
     other-modules:      Fuse
                         , Functor
+                        , Parallel
                         , Route
                         , Util
     hs-source-dirs:     test
@@ -87,6 +88,7 @@ test-suite parallel-haskell-testsuite
                         , HUnit
                         , parallel-conduits
                         , profunctors
+                        , random
                         , these
                         , witherable
     default-language:   Haskell2010

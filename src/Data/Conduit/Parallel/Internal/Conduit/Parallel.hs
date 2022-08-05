@@ -407,7 +407,9 @@ module Data.Conduit.Parallel.Internal.Conduit.Parallel where
                                             -- the tvar and move on.
                                             Closed -> doRead
                                             Empty  -> doRead
-                                            Full a -> pure $ Just a
+                                            Full a -> do
+                                                writeTVar tvar Empty
+                                                pure $ Just a
 
                     closeRead :: m ()
                     closeRead = do
